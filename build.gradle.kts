@@ -3,5 +3,16 @@ plugins {
     id("com.android.application") version "8.13.2" apply false
     id("com.android.library") version "8.13.2" apply false
     id("org.jetbrains.kotlin.android") version "2.3.21" apply false
-    id("com.google.dagger.hilt.android") version "2.59.2" apply false
+    id("com.google.dagger.hilt.android") version "2.51.1" apply false
+}
+subprojects {
+    configurations.all {
+        resolutionStrategy {
+            eachDependency {
+                if (requested.group == "org.jetbrains.kotlinx" && requested.name == "kotlinx-metadata-jvm") {
+                    useVersion("0.9.0") // Versi ini udah support metadata 2.3.0+
+                }
+            }
+        }
+    }
 }

@@ -5,13 +5,14 @@ import com.project.insole.features.tracking.data.datasource.SupabaseDataSource
 import com.project.insole.features.tracking.domain.model.InsoleSensorData
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import javax.inject.Inject
 
 /**
  * Repository is the single source of truth for sensor data.
  * Combines BLE real-time data with Supabase remote data.
  * Exposes immutable StateFlow to presentation layer.
  */
-class SensorRepositoryImpl(
+class SensorRepositoryImpl @Inject constructor(
     private val bleSensorDataSource: BleSensorDataSource,
     private val supabaseDataSource: SupabaseDataSource
 ) : SensorRepository {

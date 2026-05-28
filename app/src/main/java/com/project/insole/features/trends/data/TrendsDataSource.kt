@@ -1,12 +1,13 @@
 package com.project.insole.features.trends.data
 
 import com.project.insole.features.sensor.domain.model.InsoleSensorData
+import javax.inject.Inject
 
 /**
  * Data source for sensor trends and medical summary data.
  * Aggregates data over time periods for analytics.
  */
-class TrendsDataSource {
+class TrendsDataSource @Inject constructor() {
 
     /**
      * Fetches sensor data for a specific timeframe.

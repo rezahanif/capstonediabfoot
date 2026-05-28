@@ -2,12 +2,13 @@ package com.project.insole.features.sensor.data.datasource
 
 import com.project.insole.core.network.SupabaseClient
 import com.project.insole.features.sensor.domain.model.InsoleSensorData
+import javax.inject.Inject
 
 /**
  * Pushes threshold alerts and sensor history to Supabase.
  * Handles remote persistence and analytics.
  */
-class SupabaseDataSource {
+class SupabaseDataSource @Inject constructor() {
 
     /**
      * Uploads sensor data to Supabase for historical storage and analytics.

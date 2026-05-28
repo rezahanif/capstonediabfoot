@@ -1,5 +1,7 @@
 package com.project.insole.features.diagnostics.domain
 
+import javax.inject.Inject
+
 /**
  * Pure Kotlin domain use cases for device diagnostics.
  * No Android or BLE dependencies - only business logic.
@@ -18,7 +20,7 @@ enum class HealthStatus {
     POOR
 }
 
-class GenerateDiagnosticReportUseCase {
+class GenerateDiagnosticReportUseCase @Inject constructor() {
     operator fun invoke(
         batteryLevel: Int,
         rssiStrength: Int,

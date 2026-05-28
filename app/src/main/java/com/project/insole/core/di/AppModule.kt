@@ -1,8 +1,12 @@
 package com.project.insole.core.di
 
+import android.content.Context
+import com.project.insole.core.ble.InsoleBleManager
+import com.project.insole.core.notifications.InsoleNotificationManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
@@ -16,8 +20,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideAppContext(): String {
-        // Provide application context
-        return "app_context"
+    fun provideBleManager(@ApplicationContext context: Context): InsoleBleManager {
+        return InsoleBleManager(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideNotificationManager(@ApplicationContext context: Context): InsoleNotificationManager {
+        return InsoleNotificationManager(context)
     }
 }

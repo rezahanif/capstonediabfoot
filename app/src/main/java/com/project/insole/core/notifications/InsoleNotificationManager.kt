@@ -4,8 +4,11 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.project.insole.R
 
 /**
@@ -30,7 +33,7 @@ class InsoleNotificationManager(private val context: Context) {
             val criticalChannel = NotificationChannel(
                 CHANNEL_CRITICAL_ALERTS,
                 "Critical Alerts",
-                NotificationManager.IMPORTANCE_MAX
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Critical pressure and health alerts"
                 enableVibration(true)
@@ -70,6 +73,12 @@ class InsoleNotificationManager(private val context: Context) {
         affectedZone: String,
         severity: AlertSeverity = AlertSeverity.WARNING
     ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+        }
+
         val notification = NotificationCompat.Builder(context, CHANNEL_CRITICAL_ALERTS)
             .setContentTitle(title)
             .setContentText(message)
@@ -104,6 +113,12 @@ class InsoleNotificationManager(private val context: Context) {
         isConnected: Boolean,
         deviceName: String = "Insole Device"
     ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+        }
+
         val (title, message, icon) = if (isConnected) {
             Triple(
                 "Connected",
@@ -133,6 +148,12 @@ class InsoleNotificationManager(private val context: Context) {
      * Sends battery low warning notification.
      */
     fun sendBatteryLowWarning(batteryLevel: Int, deviceName: String = "Insole Device") {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+        }
+
         val notification = NotificationCompat.Builder(context, CHANNEL_DEVICE_STATUS)
             .setContentTitle("Low Battery")
             .setContentText("$deviceName battery at $batteryLevel%")
@@ -149,6 +170,12 @@ class InsoleNotificationManager(private val context: Context) {
      * Sends calibration reminder notification.
      */
     fun sendCalibrationReminder() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+        }
+
         val notification = NotificationCompat.Builder(context, CHANNEL_GENERAL)
             .setContentTitle("Calibration Needed")
             .setContentText("Your insole device needs recalibration. Tap to calibrate.")

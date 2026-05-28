@@ -1,9 +1,11 @@
 package com.project.insole.features.settings.data
 
+import javax.inject.Inject
+
 /**
  * Data source for user settings and preferences.
  */
-class SettingsDataSource {
+class SettingsDataSource @Inject constructor() {
 
     /**
      * Saves user preference to local storage.

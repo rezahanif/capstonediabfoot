@@ -1,6 +1,7 @@
 package com.project.insole.features.tracking.domain.usecase
 
 import com.project.insole.features.tracking.domain.model.InsoleSensorData
+import javax.inject.Inject
 
 data class ThresholdAlert(
     val message: String,
@@ -19,7 +20,7 @@ enum class AlertSeverity {
  * Triggers alerts if pressure exceeds safety limits for diabetic patients.
  * No Android or BLE dependencies - just business logic.
  */
-class AnalyzePressureThresholdUseCase {
+class AnalyzePressureThresholdUseCase @Inject constructor() {
 
     private val PRESSURE_THRESHOLD = 200  // Example threshold in arbitrary units
     private val CRITICAL_THRESHOLD = 300

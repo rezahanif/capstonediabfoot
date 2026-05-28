@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.project.insole.features.notifications.domain.NotificationSummary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

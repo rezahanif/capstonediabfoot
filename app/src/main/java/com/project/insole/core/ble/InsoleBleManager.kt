@@ -8,10 +8,11 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
-import android.os.Build
+import com.project.insole.core.ble.model.BleDeviceState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -98,28 +99,16 @@ class InsoleBleManager(context: Context) : BluetoothGattCallback() {
      * Connects to a BLE device by address.
      */
     fun connect(deviceAddress: String) {
-        if (!isBluetoothEnabled()) {
-            _bleDeviceState.value = BleDeviceState.Error("Bluetooth not enabled")
-            return
-        }
-
-        stopScanning()
+        if (!isBluetoothEnabled()) return
+        
+        val device = bluetoothAdapter?.getRemoteDevice(deviceAddress)
         _bleDeviceState.value = BleDeviceState.Connecting
-
-        try {
-            val device: BluetoothDevice? = bluetoothAdapter?.getRemoteDevice(deviceAddress)
-            device?.let {
-                gatt = it.connectGatt(context, false, this)
-            } ?: run {
-                _bleDeviceState.value = BleDeviceState.Error("Device not found")
-            }
-        } catch (e: Exception) {
-            _bleDeviceState.value = BleDeviceState.Error(e.message ?: "Connection failed")
-        }
+        
+        gatt = device?.connectGatt(context, false, this)
     }
 
     /**
-     * Disconnects from the current BLE device.
+     * Disconnects from the current device.
      */
     fun disconnect() {
         gatt?.disconnect()
@@ -130,33 +119,10 @@ class InsoleBleManager(context: Context) : BluetoothGattCallback() {
 
     /**
      * Requests MTU size update for faster data transfer.
+     * minSdk = 24, so LOLLIPOP (API 21) check is always true and omitted.
      */
     fun requestMtu(mtuSize: Int) {
         gatt?.requestMtu(mtuSize)
-    }
-
-    /**
-     * Reads characteristic value from the device.
-     */
-    fun readCharacteristic(characteristic: BluetoothGattCharacteristic) {
-        gatt?.readCharacteristic(characteristic)
-    }
-
-    /**
-     * Writes data to a characteristic on the device.
-     */
-    fun writeCharacteristic(characteristic: BluetoothGattCharacteristic, data: ByteArray) {
-        characteristic.value = data
-        gatt?.writeCharacteristic(characteristic)
-    }
-
-    /**
-     * Requests MTU size update for faster data transfer.
-     */
-    fun requestMtu(mtuSize: Int) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            gatt?.requestMtu(mtuSize)
-        }
     }
 
     /**
@@ -178,14 +144,16 @@ class InsoleBleManager(context: Context) : BluetoothGattCallback() {
         super.onConnectionStateChange(gatt, status, newState)
         
         when (newState) {
-            BluetoothAdapter.STATE_CONNECTED -> {
+            BluetoothProfile.STATE_CONNECTED -> {
+                this.gatt = gatt
                 _bleDeviceState.value = BleDeviceState.Discovering
                 // Discover services after connection
                 gatt?.discoverServices()
             }
-            BluetoothAdapter.STATE_DISCONNECTED -> {
+            BluetoothProfile.STATE_DISCONNECTED -> {
                 _bleDeviceState.value = BleDeviceState.Disconnected
-                gatt?.close()
+                this.gatt?.close()
+                this.gatt = null
             }
         }
     }
@@ -208,7 +176,6 @@ class InsoleBleManager(context: Context) : BluetoothGattCallback() {
         status: Int
     ) {
         super.onCharacteristicRead(gatt, characteristic, status)
-        
         if (status == BluetoothGatt.GATT_SUCCESS && characteristic != null) {
             // Data received - handle in BleSensorDataSource
         }

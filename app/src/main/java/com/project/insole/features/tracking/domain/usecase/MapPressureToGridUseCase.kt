@@ -3,12 +3,13 @@ package com.project.insole.features.tracking.domain.usecase
 import com.project.insole.features.tracking.domain.model.InsoleSensorData
 import com.project.insole.features.tracking.domain.model.PressureZone
 import com.project.insole.features.tracking.domain.model.ZoneType
+import javax.inject.Inject
 
 /**
  * Pure Kotlin use case for converting sensor values to a 2D matrix for UI visualization.
  * No Android or BLE dependencies - just data transformation logic.
  */
-class MapPressureToGridUseCase {
+class MapPressureToGridUseCase @Inject constructor() {
 
     private val GRID_WIDTH = 5   // 5 columns (medial to lateral)
     private val GRID_HEIGHT = 10  // 10 rows (heel to toe)

@@ -3,13 +3,14 @@ package com.project.insole.features.sensor.data.datasource
 import com.project.insole.features.sensor.domain.model.InsoleSensorData
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import javax.inject.Inject
 
 /**
  * Parses raw bytes from ESP32 into Kotlin data classes.
  * This is the ONLY place where BLE byte parsing happens.
  * All other layers receive clean domain models.
  */
-class BleSensorDataSource {
+class BleSensorDataSource @Inject constructor() {
 
     private val _sensorDataFlow = MutableStateFlow<InsoleSensorData?>(null)
     val sensorDataFlow: Flow<InsoleSensorData?> = _sensorDataFlow

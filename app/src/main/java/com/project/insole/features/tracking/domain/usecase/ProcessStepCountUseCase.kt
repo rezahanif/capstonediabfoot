@@ -1,12 +1,13 @@
 package com.project.insole.features.tracking.domain.usecase
 
 import com.project.insole.features.tracking.domain.model.InsoleSensorData
+import javax.inject.Inject
 
 /**
  * Pure Kotlin use case for calculating step count if done app-side.
  * No Android or BLE dependencies - just business logic.
  */
-class ProcessStepCountUseCase {
+class ProcessStepCountUseCase @Inject constructor() {
 
     /**
      * Processes sensor data to calculate or validate step count.

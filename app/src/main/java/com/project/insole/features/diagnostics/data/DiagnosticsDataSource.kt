@@ -3,12 +3,13 @@ package com.project.insole.features.diagnostics.data
 import com.project.insole.core.network.SupabaseClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import javax.inject.Inject
 
 /**
  * Data source for device diagnostics information.
  * Handles battery level, RSSI signal strength, and device status.
  */
-class DiagnosticsDataSource {
+class DiagnosticsDataSource @Inject constructor() {
 
     private val _deviceStatusFlow = MutableStateFlow<DeviceStatus?>(null)
     val deviceStatusFlow: Flow<DeviceStatus?> = _deviceStatusFlow

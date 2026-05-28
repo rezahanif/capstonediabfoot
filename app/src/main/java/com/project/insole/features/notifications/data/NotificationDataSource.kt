@@ -1,12 +1,13 @@
 package com.project.insole.features.notifications.data
 
 import com.project.insole.features.sensor.domain.model.InsoleSensorData
+import javax.inject.Inject
 
 /**
  * Data source for notification management.
  * Fetches and stores notification history from local database.
  */
-class NotificationDataSource {
+class NotificationDataSource @Inject constructor() {
 
     /**
      * Saves notification to local database.

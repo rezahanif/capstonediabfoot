@@ -32,9 +32,16 @@ class BleViewModel @Inject constructor(
 
     init {
         observeBleState()
+        checkBluetoothEnabled()
     }
 
     private fun observeBleState() {
+        viewModelScope.launch {
+            bleManager.isBluetoothEnabledFlow.collect { enabled ->
+                _bleState.value = _bleState.value.copy(isBluetoothEnabled = enabled)
+            }
+        }
+
         viewModelScope.launch {
             bleManager.scannedDevices.collect { devices ->
                 _bleState.value = _bleState.value.copy(scannedDevices = devices)

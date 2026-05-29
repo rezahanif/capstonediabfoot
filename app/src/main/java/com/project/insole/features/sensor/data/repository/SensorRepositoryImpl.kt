@@ -14,12 +14,21 @@ import javax.inject.Inject
  */
 class SensorRepositoryImpl @Inject constructor(
     private val bleSensorDataSource: BleSensorDataSource,
-    private val supabaseDataSource: SupabaseDataSource
+    private val supabaseDataSource: SupabaseDataSource,
+    private val bleManager: com.project.insole.core.ble.InsoleBleManager
 ) : SensorRepository {
 
     override fun getSensorDataFlow(): Flow<InsoleSensorData?> {
         // Combine BLE live data with any remote cached data
         return bleSensorDataSource.sensorDataFlow
+    }
+
+    override fun getConnectionState(): Flow<com.project.insole.core.ble.model.BleDeviceState> {
+        return bleManager.bleDeviceState
+    }
+
+    override fun disconnect() {
+        bleManager.disconnect()
     }
 
     override suspend fun uploadSensorData(sensorData: InsoleSensorData): Result<Unit> {
@@ -33,6 +42,8 @@ class SensorRepositoryImpl @Inject constructor(
 
 interface SensorRepository {
     fun getSensorDataFlow(): Flow<InsoleSensorData?>
+    fun getConnectionState(): Flow<com.project.insole.core.ble.model.BleDeviceState>
+    fun disconnect()
     suspend fun uploadSensorData(sensorData: InsoleSensorData): Result<Unit>
     suspend fun fetchSensorHistory(userId: String): Result<List<InsoleSensorData>>
 }

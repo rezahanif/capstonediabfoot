@@ -1,204 +1,200 @@
 package com.project.insole.core.ble
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.project.insole.core.ble.model.BleDeviceState
+import com.project.insole.core.theme.DashboardColors
 
-/**
- * BLE Device Pairing Screen - allows user to scan for and connect to insole devices.
- * Shows connection status and list of available devices.
- */
 @Composable
 fun BleDevicePairingScreen(
     viewModel: BleViewModel,
-    onConnected: () -> Unit
+    onConnected: () -> Unit,
+    onBack: () -> Unit
 ) {
     val state = viewModel.bleState.collectAsState().value
+
+    // Auto-refresh Bluetooth status when screen opens
+    LaunchedEffect(Unit) {
+        viewModel.checkBluetoothEnabled()
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .background(DashboardColors.Background)
     ) {
-        // Header
-        Text(
-            text = "Pair Insole Device",
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        // Bluetooth Status
-        BleStatusCard(
-            isBluetoothEnabled = state.isBluetoothEnabled,
-            connectionState = state.deviceState,
-            connectedDeviceName = state.connectedDeviceName
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Scan/Stop Button
-        when {
-            state.isScanning -> {
-                Button(
-                    onClick = { viewModel.stopScanning() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                ) {
-                    Text("Stop Scanning")
-                }
-            }
-            else -> {
-                Button(
-                    onClick = {
-                        viewModel.checkBluetoothEnabled()
-                        viewModel.startScanning()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                ) {
-                    Text("Start Scanning")
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Devices List
-        Text(
-            text = "Available Devices (${state.scannedDevices.size})",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        if (state.scannedDevices.isEmpty()) {
-            if (state.isScanning) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    CircularProgressIndicator()
-                    Text(
-                        "Searching for devices...",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-            } else {
-                Text(
-                    "No devices found. Enable Bluetooth and start scanning.",
-                    style = MaterialTheme.typography.bodySmall
+        // ── Top Bar (Matching Live Monitor style) ───────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(73.dp)
+                .background(DashboardColors.Background)
+                .padding(horizontal = 20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    tint = DashboardColors.Navy
                 )
             }
-        } else {
-            LazyColumn {
-                items(state.scannedDevices) { device ->
-                    DeviceCard(
-                        device = device,
-                        isConnected = state.connectedDeviceName == device.name,
-                        onConnect = { viewModel.connectToDevice(device.address, device.name) }
-                    )
-                }
+            
+            Text(
+                text = "Pair Insole Device",
+                color = DashboardColors.Navy,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            IconButton(
+                onClick = { 
+                    viewModel.checkBluetoothEnabled()
+                    viewModel.startScanning() 
+                },
+                modifier = Modifier.align(Alignment.CenterEnd)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Refresh",
+                    tint = DashboardColors.Navy
+                )
             }
         }
 
-        // Error Message
-        if (state.errorMessage != null) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp)
+        ) {
+            // ── Bluetooth Status Card ───────────────────────────────────────
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 16.dp)
+                    .padding(top = 16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Text(
-                    text = "❌ ${state.errorMessage}",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(12.dp),
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-        }
-
-        // Connected - proceed button
-        if (state.deviceState == BleDeviceState.Connected) {
-            Button(
-                onClick = onConnected,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .padding(top = 16.dp)
-            ) {
-                Text("Proceed to Dashboard")
-            }
-        }
-    }
-}
-
-@Composable
-private fun BleStatusCard(
-    isBluetoothEnabled: Boolean,
-    connectionState: BleDeviceState,
-    connectedDeviceName: String
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Bluetooth", style = MaterialTheme.typography.labelMedium)
-                Text(
-                    if (isBluetoothEnabled) "✅ Enabled" else "❌ Disabled",
-                    style = MaterialTheme.typography.labelSmall
-                )
+                Row(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "Bluetooth Status",
+                            color = DashboardColors.TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (state.isBluetoothEnabled) "Enabled" else "Disabled",
+                            color = if (state.isBluetoothEnabled) DashboardColors.Green else Color.Red,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.Bluetooth,
+                        contentDescription = null,
+                        tint = if (state.isBluetoothEnabled) DashboardColors.Brand else Color.Gray,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Connection", style = MaterialTheme.typography.labelMedium)
-                Text(
-                    when (connectionState) {
-                        BleDeviceState.Disconnected -> "❌ Disconnected"
-                        BleDeviceState.Connecting -> "⏳ Connecting..."
-                        BleDeviceState.Connected -> "✅ Connected"
-                        BleDeviceState.Discovering -> "🔍 Discovering..."
-                        is BleDeviceState.Error -> "❌ Error"
-                    },
-                    style = MaterialTheme.typography.labelSmall
-                )
+            // ── Devices Section ─────────────────────────────────────────────
+            Text(
+                text = "AVAILABLE DEVICES",
+                color = DashboardColors.TextMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.5.sp,
+                modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+            )
+
+            if (state.scannedDevices.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (state.isScanning) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = DashboardColors.Brand)
+                            Spacer(Modifier.height(12.dp))
+                            Text("Searching for your Insole...", color = DashboardColors.TextMuted)
+                        }
+                    } else {
+                        Button(
+                            onClick = { 
+                                viewModel.checkBluetoothEnabled()
+                                viewModel.startScanning() 
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = DashboardColors.Brand)
+                        ) {
+                            Text("Start Scanning")
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 24.dp)
+                ) {
+                    items(state.scannedDevices) { device ->
+                        DeviceCard(
+                            device = device,
+                            isSelected = state.connectedDeviceName == device.name,
+                            onConnect = { viewModel.connectToDevice(device.address, device.name) }
+                        )
+                    }
+                }
             }
 
-            if (connectedDeviceName.isNotEmpty()) {
-                Text(
-                    text = "Device: $connectedDeviceName",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+            // ── Bottom Action Button ────────────────────────────────────────
+            if (state.deviceState == BleDeviceState.Connected) {
+                Button(
+                    onClick = onConnected,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 32.dp)
+                        .height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = DashboardColors.GreenMint)
+                ) {
+                    Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Proceed to Dashboard", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -207,48 +203,46 @@ private fun BleStatusCard(
 @Composable
 private fun DeviceCard(
     device: ScannedDevice,
-    isConnected: Boolean,
+    isSelected: Boolean,
     onConnect: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = device.name,
-                    style = MaterialTheme.typography.titleSmall
+                    color = DashboardColors.Navy,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
                 )
                 Text(
                     text = device.address,
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    text = "RSSI: ${device.rssi} dBm",
-                    style = MaterialTheme.typography.labelSmall
+                    color = DashboardColors.TextMuted,
+                    fontSize = 12.sp
                 )
             }
-
+            
             Button(
                 onClick = onConnect,
-                enabled = !isConnected,
-                modifier = Modifier.height(40.dp)
+                enabled = !isSelected,
+                shape = RoundedCornerShape(50.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isSelected) DashboardColors.Green else DashboardColors.Brand
+                )
             ) {
-                Text(if (isConnected) "Connected" else "Connect")
+                Text(if (isSelected) "Connected" else "Connect", fontSize = 12.sp)
             }
         }
     }
-}
-
-@Composable
-private fun Spacer(modifier: Modifier) {
-    androidx.compose.foundation.layout.Spacer(modifier = modifier)
 }

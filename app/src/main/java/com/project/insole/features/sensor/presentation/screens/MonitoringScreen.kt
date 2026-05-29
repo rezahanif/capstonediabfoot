@@ -1,68 +1,206 @@
 package com.project.insole.features.sensor.presentation.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.StopCircle
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.project.insole.core.theme.DashboardColors
 import com.project.insole.features.sensor.presentation.SensorViewModel
-import com.project.insole.features.sensor.presentation.components.FsrDetailedGrid
-import com.project.insole.features.sensor.presentation.components.TemperatureDetailChart
-import com.project.insole.features.sensor.presentation.components.ConnectionQualityGraph
-import com.project.insole.features.sensor.presentation.components.StepsTrendChart
+import com.project.insole.features.sensor.presentation.components.*
 
 /**
  * Monitoring screen showing DETAILED view of each sensor independently.
- * Displays each FSR sensor value, temperature trend, connection quality, and step trend.
+ * Redesigned from the Figma CAPSTONE node 11:2347.
  */
 @Composable
-fun MonitoringScreen(viewModel: SensorViewModel) {
+fun MonitoringScreen(
+    viewModel: SensorViewModel,
+    onBack: () -> Unit = {}
+) {
     val state = viewModel.sensorState.collectAsState().value
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .background(DashboardColors.Background)
     ) {
-        Text(
-            text = "Monitoring",
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        // 1 ── Top App Bar ────────────────────────────────────────────────
+        MonitoringTopBar(onBack = onBack)
 
-        // Each FSR sensor independently
-        Text(
-            text = "Pressure Sensors (FSR)",
-            style = MaterialTheme.typography.titleMedium
-        )
-        FsrDetailedGrid(fsrValues = state.fsrValues)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // 2 ── Timer Section ──────────────────────────────────────────
+            SessionTimerSection(
+                durationSeconds = state.sessionDurationSeconds,
+                isRecording = state.isConnected
+            )
 
-        // Temperature trend
-        Text(
-            text = "Temperature Trend",
-            style = MaterialTheme.typography.titleMedium
-        )
-        TemperatureDetailChart(temp = state.temperature)
+            // 3 ── Plantar Pressure Map Card ──────────────────────────────
+            PlantarPressureCard(pressureValues = state.fsrValues)
 
-        // Connection quality
-        Text(
-            text = "Connection Quality",
-            style = MaterialTheme.typography.titleMedium
-        )
-        ConnectionQualityGraph(quality = state.connectionQuality)
+            // 4 ── Temperature Asymmetry Card ─────────────────────────────
+            TempAsymmetryCard(
+                leftTemp = state.temperature,
+                rightTemp = state.temperature // Assuming model handles dual temp
+            )
 
-        // Steps trend
+            // 5 ── Foot Temperature Row ──────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp)
+                    .height(114.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                SingleFootTempCard(
+                    label = "RIGHT FOOT (PEAK)",
+                    temp = state.temperature, // Placeholder
+                    modifier = Modifier.weight(1f)
+                )
+                SingleFootTempCard(
+                    label = "LEFT FOOT (PEAK)",
+                    temp = state.temperature,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // 6 ── End Session Button ─────────────────────────────────────
+            Button(
+                onClick = { 
+                    viewModel.endSession()
+                    onBack()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp, bottom = 32.dp)
+                    .height(52.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFBA1A1A),
+                    contentColor = Color.White
+                ),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.StopCircle,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "End Session",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonitoringTopBar(onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(73.dp)
+            .background(DashboardColors.Background)
+            .padding(horizontal = 20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            Icon(
+                imageVector = Icons.Default.ArrowBack,
+                contentDescription = "Back",
+                tint = DashboardColors.Navy
+            )
+        }
+        
         Text(
-            text = "Daily Steps",
-            style = MaterialTheme.typography.titleMedium
+            text = "Live Monitor",
+            color = DashboardColors.Navy,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
         )
-        StepsTrendChart(steps = state.stepCount)
+        
+        Surface(
+            shape = RoundedCornerShape(50.dp),
+            color = DashboardColors.Navy,
+            modifier = Modifier.align(Alignment.CenterEnd)
+        ) {
+            Text(
+                text = "AUTO",
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SingleFootTempCard(
+    label: String,
+    temp: Float,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxHeight(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = label,
+                color = DashboardColors.TextMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.5.sp
+            )
+            
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Text(
+                    text = "%.1f".format(temp),
+                    color = DashboardColors.Navy,
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "°C",
+                    color = DashboardColors.TextMuted,
+                    fontSize = 18.sp,
+                    modifier = Modifier.padding(bottom = 6.dp, start = 2.dp)
+                )
+            }
+        }
     }
 }

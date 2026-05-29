@@ -2,12 +2,15 @@ package com.project.insole.features.sensor.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.project.insole.core.ble.model.BleDeviceState
 import com.project.insole.features.sensor.data.repository.SensorRepository
 import com.project.insole.features.sensor.domain.model.InsoleSensorData
 import com.project.insole.features.sensor.domain.usecase.AnalyzePressureThresholdUseCase
 import com.project.insole.features.sensor.domain.usecase.MapPressureToGridUseCase
 import com.project.insole.features.sensor.domain.usecase.ProcessStepCountUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -15,21 +18,17 @@ import javax.inject.Inject
 
 data class SensorUiState(
     val isLoading: Boolean = false,
-    val fsrValues: List<Int> = emptyList(),      // 5 FSR values from ESP32
+    val fsrValues: List<Int> = emptyList(),
     val temperature: Float = 0f,
     val stepCount: Int = 0,
     val batteryLevel: Int = 0,
     val connectionQuality: String = "Unknown",
     val thresholdAlerts: List<String> = emptyList(),
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val isConnected: Boolean = false,
+    val sessionDurationSeconds: Long = 0L
 )
 
-/**
- * ViewModel for all sensor-related screens (Dashboard & Monitoring).
- * Exposes immutable StateFlow with all ESP32 sensor data.
- * Both DashboardScreen and MonitoringScreen use this same ViewModel.
- * Only accesses domain use cases - no data layer access directly.
- */
 @HiltViewModel
 class SensorViewModel @Inject constructor(
     private val sensorRepository: SensorRepository,
@@ -41,32 +40,84 @@ class SensorViewModel @Inject constructor(
     private val _sensorState = MutableStateFlow(SensorUiState())
     val sensorState: StateFlow<SensorUiState> = _sensorState
 
+    private var timerJob: Job? = null
+    private var sessionStartTime: Long = 0L
+
     init {
         observeSensorData()
+        observeConnectionState()
     }
 
     private fun observeSensorData() {
         viewModelScope.launch {
             sensorRepository.getSensorDataFlow().collect { sensorData ->
                 if (sensorData != null) {
-                    _sensorState.value = _sensorState.value.copy(isLoading = false)
                     updateSensorState(sensorData)
                 }
             }
         }
     }
 
+    private fun observeConnectionState() {
+        viewModelScope.launch {
+            sensorRepository.getConnectionState().collect { state ->
+                val isConnected = state == BleDeviceState.Connected
+                
+                if (isConnected) {
+                    _sensorState.value = _sensorState.value.copy(isConnected = true)
+                    startSessionTimer()
+                } else {
+                    stopSessionTimer()
+                    // Reset UI data to default values upon disconnection
+                    _sensorState.value = _sensorState.value.copy(
+                        isConnected = false,
+                        fsrValues = emptyList(),
+                        temperature = 0f,
+                        stepCount = 0,
+                        batteryLevel = 0,
+                        thresholdAlerts = emptyList(),
+                        connectionQuality = "Disconnected"
+                    )
+                }
+            }
+        }
+    }
+
+    private fun startSessionTimer() {
+        if (timerJob != null) return // Already running
+        
+        sessionStartTime = System.currentTimeMillis()
+        timerJob = viewModelScope.launch {
+            while (true) {
+                val elapsed = (System.currentTimeMillis() - sessionStartTime) / 1000
+                _sensorState.value = _sensorState.value.copy(sessionDurationSeconds = elapsed)
+                delay(1000)
+            }
+        }
+    }
+
+    private fun stopSessionTimer() {
+        timerJob?.cancel()
+        timerJob = null
+        _sensorState.value = _sensorState.value.copy(sessionDurationSeconds = 0)
+    }
+
+    fun endSession() {
+        sensorRepository.disconnect()
+        stopSessionTimer()
+    }
+
     private fun updateSensorState(sensorData: InsoleSensorData) {
         val stepCount = processStepCountUseCase(sensorData)
         val alerts = analyzePressureThresholdUseCase(sensorData)
 
-        _sensorState.value = SensorUiState(
+        _sensorState.value = _sensorState.value.copy(
             isLoading = false,
             fsrValues = sensorData.pressureValues,
             temperature = sensorData.temperature,
             stepCount = stepCount,
-            batteryLevel = 85,  // TODO: Get from BLE data
-            connectionQuality = "Good",  // TODO: Get RSSI from BLE data
+            batteryLevel = sensorData.batteryLevel,
+            connectionQuality = "Good",
             thresholdAlerts = alerts.map { it.message }
         )
     }

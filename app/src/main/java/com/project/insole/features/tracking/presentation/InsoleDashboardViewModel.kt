@@ -16,9 +16,13 @@ import javax.inject.Inject
 
 data class DashboardUiState(
     val isLoading: Boolean = false,
-    val pressureGrid: List<List<PressureZone>>? = null,
-    val temperature: Float = 0f,
+    val leftPressure: Int = 0,
+    val rightPressure: Int = 0,
+    val leftTemperature: Float = 0f,
+    val rightTemperature: Float = 0f,
+    val temperatureDifference: Float = 0f,
     val stepCount: Int = 0,
+    val batteryLevel: Int = 0,
     val thresholdAlerts: List<String> = emptyList(),
     val errorMessage: String? = null
 )
@@ -56,15 +60,19 @@ class InsoleDashboardViewModel @Inject constructor(
     }
 
     private fun updateDashboard(sensorData: InsoleSensorData) {
-        val pressureGrid = mapPressureToGridUseCase(sensorData)
         val stepCount = processStepCountUseCase(sensorData)
         val alerts = analyzePressureThresholdUseCase(sensorData)
+        val tempDifference = kotlin.math.abs(sensorData.leftTemperature - sensorData.rightTemperature)
 
         _dashboardState.value = DashboardUiState(
             isLoading = false,
-            pressureGrid = pressureGrid,
-            temperature = sensorData.temperature,
+            leftPressure = sensorData.leftPressure,
+            rightPressure = sensorData.rightPressure,
+            leftTemperature = sensorData.leftTemperature,
+            rightTemperature = sensorData.rightTemperature,
+            temperatureDifference = tempDifference,
             stepCount = stepCount,
+            batteryLevel = sensorData.batteryLevel,
             thresholdAlerts = alerts.map { it.message }
         )
     }

@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "com.project.insole.app-mergeDebugResources-52:/values-da/values-da.xml",
+            "outputFile": "com.project.insole.app-mergeDebugResources-53:/values-da/values-da.xml",
             "map": [
                 {
-                    "source": "/Users/reza/.gradle/caches/8.13/transforms/d87867bf4b4abd4ad289e878472d15e6/transformed/core-1.12.0/res/values-da/values-da.xml",
+                    "source": "/Users/reza/.gradle/caches/8.13/transforms/d78defec936a54d5c40719a9bdaac4ea/transformed/core-1.12.0/res/values-da/values-da.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9",
                         "startColumns": "4,4,4,4,4,4,4,4",
@@ -21,7 +21,7 @@
                     }
                 },
                 {
-                    "source": "/Users/reza/.gradle/caches/8.13/transforms/933a0044d86f64ca49cd22716dbf110c/transformed/jetified-material3-1.1.1/res/values-da/values-da.xml",
+                    "source": "/Users/reza/.gradle/caches/8.13/transforms/821796f848f63cf1a57b2a265cdd5a41/transformed/jetified-material3-1.1.1/res/values-da/values-da.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
@@ -38,7 +38,7 @@
                     }
                 },
                 {
-                    "source": "/Users/reza/.gradle/caches/8.13/transforms/c8bf032c332ae7570fc27e984ee428f1/transformed/jetified-ui-release/res/values-da/values-da.xml",
+                    "source": "/Users/reza/.gradle/caches/8.13/transforms/8d71afa50661461cb4c9a4560f36ae40/transformed/jetified-ui-release/res/values-da/values-da.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",

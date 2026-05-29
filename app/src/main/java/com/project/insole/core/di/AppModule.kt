@@ -2,6 +2,7 @@ package com.project.insole.core.di
 
 import android.content.Context
 import com.project.insole.core.ble.InsoleBleManager
+import com.project.insole.core.ble.BleConnectionManager
 import com.project.insole.core.notifications.InsoleNotificationManager
 import dagger.Module
 import dagger.Provides
@@ -22,6 +23,15 @@ object AppModule {
     @Singleton
     fun provideBleManager(@ApplicationContext context: Context): InsoleBleManager {
         return InsoleBleManager(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideBleConnectionManager(
+        @ApplicationContext context: Context,
+        bleManager: InsoleBleManager
+    ): BleConnectionManager {
+        return BleConnectionManager(context, bleManager)
     }
 
     @Provides

@@ -10,8 +10,12 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.os.ParcelUuid
+import android.util.Log
 import com.project.insole.core.ble.model.BleDeviceState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,17 +52,30 @@ class InsoleBleManager(context: Context) : BluetoothGattCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             super.onScanResult(callbackType, result)
             result?.let {
+                val deviceName = it.device.name ?: "Unknown"
+                
+                // 1. Filter: Skip "Unknown" devices
+                if (deviceName == "Unknown") return@let
+
+                Log.d("InsoleBleManager", "Found device: $deviceName (${it.device.address})")
+                
                 val device = ScannedDevice(
-                    name = it.device.name ?: "Unknown",
+                    name = deviceName,
                     address = it.device.address,
                     rssi = it.rssi
                 )
                 
-                // Add to list if not already present
+                // 2. Add and Sort: Prioritize "insole" at the top
                 val currentList = _scannedDevices.value.toMutableList()
                 currentList.removeAll { existing -> existing.address == device.address }
                 currentList.add(device)
-                _scannedDevices.value = currentList
+                
+                // Sort logic: "insole" first (case-insensitive), then others alphabetically
+                val sortedList = currentList.sortedWith(compareByDescending<ScannedDevice> { 
+                    it.name.contains("insole", ignoreCase = true) 
+                }.thenBy { it.name })
+                
+                _scannedDevices.value = sortedList
             }
         }
 
@@ -68,23 +85,61 @@ class InsoleBleManager(context: Context) : BluetoothGattCallback() {
         }
     }
 
+    private val _isBluetoothEnabled = MutableStateFlow(false)
+    val isBluetoothEnabledFlow: StateFlow<Boolean> = _isBluetoothEnabled
+
+    init {
+        _isBluetoothEnabled.value = isBluetoothEnabled()
+    }
+
     /**
      * Check if Bluetooth is enabled.
      */
     fun isBluetoothEnabled(): Boolean {
-        return bluetoothAdapter?.isEnabled == true
+        val enabled = bluetoothAdapter?.isEnabled == true
+        _isBluetoothEnabled.value = enabled
+        return enabled
     }
 
     /**
-     * Start scanning for BLE devices.
+     * Start scanning for BLE devices with dual insole filters.
      */
     fun startScanning() {
-        if (!isBluetoothEnabled()) return
+        if (!isBluetoothEnabled()) {
+            Log.w("InsoleBleManager", "Bluetooth is disabled, cannot scan")
+            return
+        }
+        
+        val scanner = bluetoothAdapter?.bluetoothLeScanner
+        if (scanner == null) {
+            Log.e("InsoleBleManager", "BluetoothLeScanner is null. Is Bluetooth ON?")
+            _bleDeviceState.value = BleDeviceState.Error("Scanner not available")
+            return
+        }
 
+        if (_isScanning.value) {
+            Log.d("InsoleBleManager", "Already scanning, ignoring start request")
+            return
+        }
+
+        Log.d("InsoleBleManager", "Starting BLE scan for Za and Pek insoles...")
         _isScanning.value = true
         _scannedDevices.value = emptyList()
+
+        // ── Dual Service UUID Filters ──────────────────────────────────────
+        val uuidZa = ParcelUuid.fromString("4fa2c732-ca9a-4c20-9492-c167df3c942a")
+        val uuidPek = ParcelUuid.fromString("4fa2c732-ca9a-4c20-9492-c167df3c942b")
+
+        val filters = listOf(
+            ScanFilter.Builder().setServiceUuid(uuidZa).build(),
+            ScanFilter.Builder().setServiceUuid(uuidPek).build()
+        )
+
+        val settings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .build()
         
-        bluetoothAdapter?.bluetoothLeScanner?.startScan(scanCallback)
+        scanner.startScan(filters, settings, scanCallback)
     }
 
     /**
@@ -161,12 +216,37 @@ class InsoleBleManager(context: Context) : BluetoothGattCallback() {
     override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
         super.onServicesDiscovered(gatt, status)
         
-        if (status == BluetoothGatt.GATT_SUCCESS) {
+        if (status == BluetoothGatt.GATT_SUCCESS && gatt != null) {
+            Log.d("InsoleBleManager", "Services discovered. Enabling notifications...")
+            
+            // Loop through services and characteristics to find the one to notify
+            gatt.services.forEach { service ->
+                service.characteristics.forEach { characteristic ->
+                    val properties = characteristic.properties
+                    if (properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY > 0) {
+                        enableNotifications(gatt, characteristic)
+                    }
+                }
+            }
+            
             _bleDeviceState.value = BleDeviceState.Connected
-            // Request MTU for better performance
             requestMtu(512)
         } else {
             _bleDeviceState.value = BleDeviceState.Error("Service discovery failed")
+        }
+    }
+
+    private fun enableNotifications(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+        Log.d("InsoleBleManager", "Enabling notifications for ${characteristic.uuid}")
+        gatt.setCharacteristicNotification(characteristic, true)
+        
+        // Write to Descriptor to truly enable notifications on the peripheral
+        val descriptor = characteristic.getDescriptor(
+            java.util.UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+        )
+        if (descriptor != null) {
+            descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            gatt.writeDescriptor(descriptor)
         }
     }
 
@@ -201,9 +281,16 @@ class InsoleBleManager(context: Context) : BluetoothGattCallback() {
     ) {
         super.onCharacteristicChanged(gatt, characteristic)
         
-        characteristic?.value?.let {
-            // Raw bytes received - pass to BleSensorDataSource for parsing
+        characteristic?.value?.let { bytes ->
+            // Notify listeners (BleSensorDataSource)
+            characteristicChangedListener?.invoke(bytes)
         }
+    }
+
+    private var characteristicChangedListener: ((ByteArray) -> Unit)? = null
+
+    fun setOnCharacteristicChangedListener(listener: (ByteArray) -> Unit) {
+        characteristicChangedListener = listener
     }
 
     override fun onDescriptorWrite(

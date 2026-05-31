@@ -36,6 +36,7 @@
         android:extractNativeLibs="false"
         android:label="Insole"
         android:supportsRtl="true"
+        android:testOnly="true"
         android:theme="@style/Theme.Insole" >
         <activity
             android:name="com.project.insole.MainActivity"

@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
                                         popUpTo("landing") { inclusive = true }
                                     }
                                 },
+                                onNavigateToSignUp = { navController.navigate("signup") },
                                 onBack = { navController.popBackStack() }
                             )
                         }
@@ -79,6 +80,7 @@ class MainActivity : ComponentActivity() {
                                         popUpTo("landing") { inclusive = true }
                                     }
                                 },
+                                onNavigateToSignIn = { navController.navigate("login") },
                                 onBack = { navController.popBackStack() }
                             )
                         }

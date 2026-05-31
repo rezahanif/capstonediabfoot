@@ -1,5 +1,5 @@
 package com.project.insole.features.auth.presentation.screens
-
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -135,8 +135,15 @@ fun LandingScreen(
                         ),
                         shape = CircleShape
                     )
-                    .border(width = 1.dp, color = Color.White.copy(alpha = 0.15f), shape = CircleShape)
-            )
+                    .border(width = 1.dp, color = Color.White.copy(alpha = 0.15f), shape = CircleShape),
+                contentAlignment = Alignment.Center // Automatically aligns the icon perfectly in the middle
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.connect),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp) // Keeps it smaller than the 50.dp container
+                )
+            }
             
             Box(
                 modifier = Modifier
@@ -148,8 +155,15 @@ fun LandingScreen(
                         ),
                         shape = CircleShape
                     )
-                    .border(width = 1.dp, color = Color.White.copy(alpha = 0.15f), shape = CircleShape)
-            )
+                    .border(width = 1.dp, color = Color.White.copy(alpha = 0.15f), shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ){
+                Image(
+                    painter = painterResource(id = R.drawable.foot),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp) // Keeps it smaller than the 50.dp container
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -161,8 +175,15 @@ fun LandingScreen(
                         ),
                         shape = CircleShape
                     )
-                    .border(width = 1.dp, color = Color.White.copy(alpha = 0.15f), shape = CircleShape)
-            )
+                    .border(width = 1.dp, color = Color.White.copy(alpha = 0.15f), shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ){
+                Image(
+                    painter = painterResource(id = R.drawable.stat),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp) // Keeps it smaller than the 50.dp container
+                )
+            }
         }
 
         // ── Bottom CTA buttons ───────────────────────────────────────────────
@@ -176,6 +197,7 @@ fun LandingScreen(
             // SIGN IN
             PillButton(
                 label = "SIGN IN",
+                iconResId = R.drawable.sign_in,
                 modifier = Modifier.weight(1f),
                 onClick = onNavigateToLogin,
             )
@@ -183,6 +205,7 @@ fun LandingScreen(
             // SIGN UP
             PillButton(
                 label = "SIGN UP",
+                iconResId = R.drawable.sign_up,
                 modifier = Modifier.weight(1f),
                 onClick = onNavigateToSignUp,
             )
@@ -201,6 +224,7 @@ private fun PillButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    @DrawableRes iconResId: Int? = null, // 1. Add an optional icon parameter
 ) {
     Box(
         modifier = modifier
@@ -226,12 +250,28 @@ private fun PillButton(
                 pressedElevation = 2.dp
             ),
         ) {
-            Text(
-                text = label,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 4.sp,
-            )
+            // 2. Wrap the layout in a Row to place items side-by-side
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                // 3. Render the icon if it is provided
+                Text(
+                    text = label,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 4.sp,
+                )
+                Spacer(modifier = Modifier.width(12.dp)) // Distance between icon and text
+                if (iconResId != null) {
+                    Icon(
+                        painter = painterResource(id = iconResId),
+                        contentDescription = null, // Set to a string if needed for accessibility
+                        modifier = Modifier.size(30.dp), // Adjust the size as you like
+                        tint = Color.White // Forces the icon to match your white text color
+                    )
+                }
+            }
         }
     }
 }

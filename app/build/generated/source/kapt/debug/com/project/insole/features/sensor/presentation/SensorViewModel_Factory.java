@@ -1,6 +1,6 @@
 package com.project.insole.features.sensor.presentation;
 
-import com.project.insole.features.sensor.data.repository.SensorRepository;
+import com.project.insole.features.sensor.domain.repository.SensorRepository;
 import com.project.insole.features.sensor.domain.usecase.AnalyzePressureThresholdUseCase;
 import com.project.insole.features.sensor.domain.usecase.MapPressureToGridUseCase;
 import com.project.insole.features.sensor.domain.usecase.ProcessStepCountUseCase;

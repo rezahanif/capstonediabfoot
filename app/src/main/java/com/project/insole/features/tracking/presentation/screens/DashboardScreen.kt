@@ -66,8 +66,6 @@ fun DashboardScreen(
             )
         }
 
-
-
         // 5 ── Metrics Cards (Temperature | Steps) ───────────────────────
         Row(
             modifier = Modifier
@@ -89,11 +87,8 @@ fun DashboardScreen(
                 walkState = bleState.walkState,
                 leftConnected = bleState.isLeftConnected,
                 rightConnected = bleState.isRightConnected,
-                rawBleLeft = bleState.leftRawData,
-                rawBleRight = bleState.rightRawData,
-                stepGoal = 10000,
-                leftPacketSeq = bleState.leftPacketSeq,
-                rightPacketSeq = bleState.rightPacketSeq
+                combinedAccelMag = bleState.combinedAccelMag,
+                stepGoal = 10000
             )
         }
 

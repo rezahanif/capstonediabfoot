@@ -1,12 +1,14 @@
 package com.project.insole.features.sensor.data.datasource;
 
+import com.project.insole.core.network.SupabaseClient;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
 import dagger.internal.QualifierMetadata;
 import dagger.internal.ScopeMetadata;
 import javax.annotation.processing.Generated;
+import javax.inject.Provider;
 
-@ScopeMetadata
+@ScopeMetadata("javax.inject.Singleton")
 @QualifierMetadata
 @DaggerGenerated
 @Generated(
@@ -21,20 +23,22 @@ import javax.annotation.processing.Generated;
     "cast"
 })
 public final class SupabaseDataSource_Factory implements Factory<SupabaseDataSource> {
+  private final Provider<SupabaseClient> supabaseClientProvider;
+
+  public SupabaseDataSource_Factory(Provider<SupabaseClient> supabaseClientProvider) {
+    this.supabaseClientProvider = supabaseClientProvider;
+  }
+
   @Override
   public SupabaseDataSource get() {
-    return newInstance();
+    return newInstance(supabaseClientProvider.get());
   }
 
-  public static SupabaseDataSource_Factory create() {
-    return InstanceHolder.INSTANCE;
+  public static SupabaseDataSource_Factory create(Provider<SupabaseClient> supabaseClientProvider) {
+    return new SupabaseDataSource_Factory(supabaseClientProvider);
   }
 
-  public static SupabaseDataSource newInstance() {
-    return new SupabaseDataSource();
-  }
-
-  private static final class InstanceHolder {
-    private static final SupabaseDataSource_Factory INSTANCE = new SupabaseDataSource_Factory();
+  public static SupabaseDataSource newInstance(SupabaseClient supabaseClient) {
+    return new SupabaseDataSource(supabaseClient);
   }
 }

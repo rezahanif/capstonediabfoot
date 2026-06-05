@@ -3,6 +3,7 @@ package com.project.insole.features.sensor.data.repository
 import com.project.insole.features.sensor.data.datasource.BleSensorDataSource
 import com.project.insole.features.sensor.data.datasource.SupabaseDataSource
 import com.project.insole.features.sensor.domain.model.InsoleSensorData
+import com.project.insole.features.sensor.domain.repository.SensorRepository
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 
@@ -23,7 +24,6 @@ class SensorRepositoryImpl @Inject constructor(
     override fun getRawRightDataFlow(): Flow<String?> = bleSensorDataSource.rawRightDataFlow
 
     override fun getConnectionState(): Flow<com.project.insole.core.ble.model.BleDeviceState> {
-        // Return a combined state or separate ones. For now, using a placeholder.
         return bleManager.leftDeviceState 
     }
 
@@ -38,14 +38,4 @@ class SensorRepositoryImpl @Inject constructor(
     override suspend fun fetchSensorHistory(userId: String): Result<List<InsoleSensorData>> {
         return supabaseDataSource.fetchSensorHistory(userId)
     }
-}
-
-interface SensorRepository {
-    fun getSensorDataFlow(): Flow<InsoleSensorData?>
-    fun getRawLeftDataFlow(): Flow<String?>
-    fun getRawRightDataFlow(): Flow<String?>
-    fun getConnectionState(): Flow<com.project.insole.core.ble.model.BleDeviceState>
-    fun disconnect()
-    suspend fun uploadSensorData(sensorData: InsoleSensorData): Result<Unit>
-    suspend fun fetchSensorHistory(userId: String): Result<List<InsoleSensorData>>
 }

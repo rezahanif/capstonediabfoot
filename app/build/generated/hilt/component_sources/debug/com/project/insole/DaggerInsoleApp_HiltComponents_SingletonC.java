@@ -12,6 +12,7 @@ import com.project.insole.core.ble.BleViewModel_HiltModules;
 import com.project.insole.core.ble.InsoleBleManager;
 import com.project.insole.core.di.AppModule_ProvideBleConnectionManagerFactory;
 import com.project.insole.core.di.AppModule_ProvideBleManagerFactory;
+import com.project.insole.core.network.SupabaseClient;
 import com.project.insole.features.auth.domain.LoginUseCase;
 import com.project.insole.features.auth.domain.LogoutUseCase;
 import com.project.insole.features.auth.domain.SignUpUseCase;
@@ -26,8 +27,9 @@ import com.project.insole.features.notifications.presentation.NotificationsViewM
 import com.project.insole.features.notifications.presentation.NotificationsViewModel_HiltModules;
 import com.project.insole.features.sensor.data.datasource.BleSensorDataSource;
 import com.project.insole.features.sensor.data.datasource.SupabaseDataSource;
-import com.project.insole.features.sensor.data.repository.SensorRepository;
 import com.project.insole.features.sensor.data.repository.SensorRepositoryImpl;
+import com.project.insole.features.sensor.domain.repository.SensorRepository;
+import com.project.insole.features.sensor.domain.service.StepCounterService;
 import com.project.insole.features.sensor.domain.usecase.AnalyzePressureThresholdUseCase;
 import com.project.insole.features.sensor.domain.usecase.MapPressureToGridUseCase;
 import com.project.insole.features.sensor.domain.usecase.ProcessStepCountUseCase;
@@ -425,22 +427,22 @@ public final class DaggerInsoleApp_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_project_insole_features_auth_presentation_AuthViewModel = "com.project.insole.features.auth.presentation.AuthViewModel";
+      static String com_project_insole_core_ble_BleViewModel = "com.project.insole.core.ble.BleViewModel";
 
       static String com_project_insole_features_notifications_presentation_NotificationsViewModel = "com.project.insole.features.notifications.presentation.NotificationsViewModel";
 
       static String com_project_insole_features_settings_presentation_SettingsViewModel = "com.project.insole.features.settings.presentation.SettingsViewModel";
 
+      static String com_project_insole_features_sensor_presentation_SensorViewModel = "com.project.insole.features.sensor.presentation.SensorViewModel";
+
       static String com_project_insole_features_diagnostics_presentation_DiagnosticsViewModel = "com.project.insole.features.diagnostics.presentation.DiagnosticsViewModel";
+
+      static String com_project_insole_features_auth_presentation_AuthViewModel = "com.project.insole.features.auth.presentation.AuthViewModel";
 
       static String com_project_insole_features_trends_presentation_TrendsViewModel = "com.project.insole.features.trends.presentation.TrendsViewModel";
 
-      static String com_project_insole_core_ble_BleViewModel = "com.project.insole.core.ble.BleViewModel";
-
-      static String com_project_insole_features_sensor_presentation_SensorViewModel = "com.project.insole.features.sensor.presentation.SensorViewModel";
-
       @KeepFieldType
-      AuthViewModel com_project_insole_features_auth_presentation_AuthViewModel2;
+      BleViewModel com_project_insole_core_ble_BleViewModel2;
 
       @KeepFieldType
       NotificationsViewModel com_project_insole_features_notifications_presentation_NotificationsViewModel2;
@@ -449,16 +451,16 @@ public final class DaggerInsoleApp_HiltComponents_SingletonC {
       SettingsViewModel com_project_insole_features_settings_presentation_SettingsViewModel2;
 
       @KeepFieldType
+      SensorViewModel com_project_insole_features_sensor_presentation_SensorViewModel2;
+
+      @KeepFieldType
       DiagnosticsViewModel com_project_insole_features_diagnostics_presentation_DiagnosticsViewModel2;
 
       @KeepFieldType
+      AuthViewModel com_project_insole_features_auth_presentation_AuthViewModel2;
+
+      @KeepFieldType
       TrendsViewModel com_project_insole_features_trends_presentation_TrendsViewModel2;
-
-      @KeepFieldType
-      BleViewModel com_project_insole_core_ble_BleViewModel2;
-
-      @KeepFieldType
-      SensorViewModel com_project_insole_features_sensor_presentation_SensorViewModel2;
     }
   }
 
@@ -493,6 +495,10 @@ public final class DaggerInsoleApp_HiltComponents_SingletonC {
 
     }
 
+    private ProcessStepCountUseCase processStepCountUseCase() {
+      return new ProcessStepCountUseCase(singletonCImpl.stepCounterServiceProvider.get());
+    }
+
     @SuppressWarnings("unchecked")
     private void initialize(final SavedStateHandle savedStateHandleParam,
         final ViewModelLifecycle viewModelLifecycleParam) {
@@ -517,40 +523,40 @@ public final class DaggerInsoleApp_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_project_insole_features_settings_presentation_SettingsViewModel = "com.project.insole.features.settings.presentation.SettingsViewModel";
-
-      static String com_project_insole_features_sensor_presentation_SensorViewModel = "com.project.insole.features.sensor.presentation.SensorViewModel";
-
-      static String com_project_insole_features_trends_presentation_TrendsViewModel = "com.project.insole.features.trends.presentation.TrendsViewModel";
-
-      static String com_project_insole_features_auth_presentation_AuthViewModel = "com.project.insole.features.auth.presentation.AuthViewModel";
+      static String com_project_insole_core_ble_BleViewModel = "com.project.insole.core.ble.BleViewModel";
 
       static String com_project_insole_features_diagnostics_presentation_DiagnosticsViewModel = "com.project.insole.features.diagnostics.presentation.DiagnosticsViewModel";
 
-      static String com_project_insole_core_ble_BleViewModel = "com.project.insole.core.ble.BleViewModel";
+      static String com_project_insole_features_trends_presentation_TrendsViewModel = "com.project.insole.features.trends.presentation.TrendsViewModel";
 
       static String com_project_insole_features_notifications_presentation_NotificationsViewModel = "com.project.insole.features.notifications.presentation.NotificationsViewModel";
 
-      @KeepFieldType
-      SettingsViewModel com_project_insole_features_settings_presentation_SettingsViewModel2;
+      static String com_project_insole_features_auth_presentation_AuthViewModel = "com.project.insole.features.auth.presentation.AuthViewModel";
 
-      @KeepFieldType
-      SensorViewModel com_project_insole_features_sensor_presentation_SensorViewModel2;
+      static String com_project_insole_features_sensor_presentation_SensorViewModel = "com.project.insole.features.sensor.presentation.SensorViewModel";
 
-      @KeepFieldType
-      TrendsViewModel com_project_insole_features_trends_presentation_TrendsViewModel2;
-
-      @KeepFieldType
-      AuthViewModel com_project_insole_features_auth_presentation_AuthViewModel2;
-
-      @KeepFieldType
-      DiagnosticsViewModel com_project_insole_features_diagnostics_presentation_DiagnosticsViewModel2;
+      static String com_project_insole_features_settings_presentation_SettingsViewModel = "com.project.insole.features.settings.presentation.SettingsViewModel";
 
       @KeepFieldType
       BleViewModel com_project_insole_core_ble_BleViewModel2;
 
       @KeepFieldType
+      DiagnosticsViewModel com_project_insole_features_diagnostics_presentation_DiagnosticsViewModel2;
+
+      @KeepFieldType
+      TrendsViewModel com_project_insole_features_trends_presentation_TrendsViewModel2;
+
+      @KeepFieldType
       NotificationsViewModel com_project_insole_features_notifications_presentation_NotificationsViewModel2;
+
+      @KeepFieldType
+      AuthViewModel com_project_insole_features_auth_presentation_AuthViewModel2;
+
+      @KeepFieldType
+      SensorViewModel com_project_insole_features_sensor_presentation_SensorViewModel2;
+
+      @KeepFieldType
+      SettingsViewModel com_project_insole_features_settings_presentation_SettingsViewModel2;
     }
 
     private static final class SwitchingProvider<T> implements Provider<T> {
@@ -578,7 +584,7 @@ public final class DaggerInsoleApp_HiltComponents_SingletonC {
           return (T) new AuthViewModel(new LoginUseCase(), new SignUpUseCase(), new LogoutUseCase());
 
           case 1: // com.project.insole.core.ble.BleViewModel 
-          return (T) new BleViewModel(singletonCImpl.provideBleManagerProvider.get());
+          return (T) new BleViewModel(singletonCImpl.provideBleManagerProvider.get(), singletonCImpl.stepCounterServiceProvider.get());
 
           case 2: // com.project.insole.features.diagnostics.presentation.DiagnosticsViewModel 
           return (T) new DiagnosticsViewModel(new DiagnosticsDataSource(), new GenerateDiagnosticReportUseCase());
@@ -587,7 +593,7 @@ public final class DaggerInsoleApp_HiltComponents_SingletonC {
           return (T) new NotificationsViewModel(new NotificationDataSource());
 
           case 4: // com.project.insole.features.sensor.presentation.SensorViewModel 
-          return (T) new SensorViewModel(singletonCImpl.bindSensorRepositoryProvider.get(), new MapPressureToGridUseCase(), new ProcessStepCountUseCase(), new AnalyzePressureThresholdUseCase());
+          return (T) new SensorViewModel(singletonCImpl.bindSensorRepositoryProvider.get(), new MapPressureToGridUseCase(), viewModelCImpl.processStepCountUseCase(), new AnalyzePressureThresholdUseCase());
 
           case 5: // com.project.insole.features.settings.presentation.SettingsViewModel 
           return (T) new SettingsViewModel(new SettingsDataSource());
@@ -679,6 +685,14 @@ public final class DaggerInsoleApp_HiltComponents_SingletonC {
 
     private Provider<BleConnectionManager> provideBleConnectionManagerProvider;
 
+    private Provider<StepCounterService> stepCounterServiceProvider;
+
+    private Provider<BleSensorDataSource> bleSensorDataSourceProvider;
+
+    private Provider<SupabaseClient> supabaseClientProvider;
+
+    private Provider<SupabaseDataSource> supabaseDataSourceProvider;
+
     private Provider<SensorRepositoryImpl> sensorRepositoryImplProvider;
 
     private Provider<SensorRepository> bindSensorRepositoryProvider;
@@ -689,15 +703,15 @@ public final class DaggerInsoleApp_HiltComponents_SingletonC {
 
     }
 
-    private BleSensorDataSource bleSensorDataSource() {
-      return new BleSensorDataSource(provideBleManagerProvider.get());
-    }
-
     @SuppressWarnings("unchecked")
     private void initialize(final ApplicationContextModule applicationContextModuleParam) {
       this.provideBleManagerProvider = DoubleCheck.provider(new SwitchingProvider<InsoleBleManager>(singletonCImpl, 1));
       this.provideBleConnectionManagerProvider = DoubleCheck.provider(new SwitchingProvider<BleConnectionManager>(singletonCImpl, 0));
-      this.sensorRepositoryImplProvider = new SwitchingProvider<>(singletonCImpl, 2);
+      this.stepCounterServiceProvider = DoubleCheck.provider(new SwitchingProvider<StepCounterService>(singletonCImpl, 2));
+      this.bleSensorDataSourceProvider = DoubleCheck.provider(new SwitchingProvider<BleSensorDataSource>(singletonCImpl, 4));
+      this.supabaseClientProvider = DoubleCheck.provider(new SwitchingProvider<SupabaseClient>(singletonCImpl, 6));
+      this.supabaseDataSourceProvider = DoubleCheck.provider(new SwitchingProvider<SupabaseDataSource>(singletonCImpl, 5));
+      this.sensorRepositoryImplProvider = new SwitchingProvider<>(singletonCImpl, 3);
       this.bindSensorRepositoryProvider = DoubleCheck.provider((Provider) sensorRepositoryImplProvider);
     }
 
@@ -740,8 +754,20 @@ public final class DaggerInsoleApp_HiltComponents_SingletonC {
           case 1: // com.project.insole.core.ble.InsoleBleManager 
           return (T) AppModule_ProvideBleManagerFactory.provideBleManager(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
-          case 2: // com.project.insole.features.sensor.data.repository.SensorRepositoryImpl 
-          return (T) new SensorRepositoryImpl(singletonCImpl.bleSensorDataSource(), new SupabaseDataSource(), singletonCImpl.provideBleManagerProvider.get());
+          case 2: // com.project.insole.features.sensor.domain.service.StepCounterService 
+          return (T) new StepCounterService();
+
+          case 3: // com.project.insole.features.sensor.data.repository.SensorRepositoryImpl 
+          return (T) new SensorRepositoryImpl(singletonCImpl.bleSensorDataSourceProvider.get(), singletonCImpl.supabaseDataSourceProvider.get(), singletonCImpl.provideBleManagerProvider.get());
+
+          case 4: // com.project.insole.features.sensor.data.datasource.BleSensorDataSource 
+          return (T) new BleSensorDataSource(singletonCImpl.provideBleManagerProvider.get());
+
+          case 5: // com.project.insole.features.sensor.data.datasource.SupabaseDataSource 
+          return (T) new SupabaseDataSource(singletonCImpl.supabaseClientProvider.get());
+
+          case 6: // com.project.insole.core.network.SupabaseClient 
+          return (T) new SupabaseClient();
 
           default: throw new AssertionError(id);
         }

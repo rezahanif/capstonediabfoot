@@ -1,5 +1,6 @@
 package com.project.insole.core.ble;
 
+import com.project.insole.features.sensor.domain.service.StepCounterService;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
 import dagger.internal.QualifierMetadata;
@@ -24,20 +25,26 @@ import javax.inject.Provider;
 public final class BleViewModel_Factory implements Factory<BleViewModel> {
   private final Provider<InsoleBleManager> bleManagerProvider;
 
-  public BleViewModel_Factory(Provider<InsoleBleManager> bleManagerProvider) {
+  private final Provider<StepCounterService> stepCounterServiceProvider;
+
+  public BleViewModel_Factory(Provider<InsoleBleManager> bleManagerProvider,
+      Provider<StepCounterService> stepCounterServiceProvider) {
     this.bleManagerProvider = bleManagerProvider;
+    this.stepCounterServiceProvider = stepCounterServiceProvider;
   }
 
   @Override
   public BleViewModel get() {
-    return newInstance(bleManagerProvider.get());
+    return newInstance(bleManagerProvider.get(), stepCounterServiceProvider.get());
   }
 
-  public static BleViewModel_Factory create(Provider<InsoleBleManager> bleManagerProvider) {
-    return new BleViewModel_Factory(bleManagerProvider);
+  public static BleViewModel_Factory create(Provider<InsoleBleManager> bleManagerProvider,
+      Provider<StepCounterService> stepCounterServiceProvider) {
+    return new BleViewModel_Factory(bleManagerProvider, stepCounterServiceProvider);
   }
 
-  public static BleViewModel newInstance(InsoleBleManager bleManager) {
-    return new BleViewModel(bleManager);
+  public static BleViewModel newInstance(InsoleBleManager bleManager,
+      StepCounterService stepCounterService) {
+    return new BleViewModel(bleManager, stepCounterService);
   }
 }

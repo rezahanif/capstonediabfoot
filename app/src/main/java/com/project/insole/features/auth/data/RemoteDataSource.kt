@@ -1,23 +1,27 @@
 package com.project.insole.features.auth.data
 
 import com.project.insole.core.network.SupabaseClient
-import kotlinx.coroutines.flow.Flow
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Remote data source calling Supabase Auth API.
  * Handles sign-in, sign-up, session management, and token refresh.
  */
-class RemoteDataSource {
+@Singleton
+class RemoteDataSource @Inject constructor(
+    private val supabaseClient: SupabaseClient
+) {
 
     /**
      * Sign up with email and password.
      */
     suspend fun signUp(email: String, password: String): Result<String> {
         return try {
-            // Call Supabase auth API
+            // Call Supabase auth API using supabaseClient
             Result.success("user_id")
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(supabaseClient.handleNetworkError(e))
         }
     }
 
@@ -26,10 +30,10 @@ class RemoteDataSource {
      */
     suspend fun signIn(email: String, password: String): Result<String> {
         return try {
-            // Call Supabase auth API
+            // Call Supabase auth API using supabaseClient
             Result.success("session_token")
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(supabaseClient.handleNetworkError(e))
         }
     }
 
@@ -38,10 +42,10 @@ class RemoteDataSource {
      */
     suspend fun checkSession(): Result<String> {
         return try {
-            // Call Supabase auth API
+            // Call Supabase auth API using supabaseClient
             Result.success("user_id")
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(supabaseClient.handleNetworkError(e))
         }
     }
 
@@ -50,10 +54,10 @@ class RemoteDataSource {
      */
     suspend fun signOut(): Result<Unit> {
         return try {
-            // Call Supabase auth API
+            // Call Supabase auth API using supabaseClient
             Result.success(Unit)
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(supabaseClient.handleNetworkError(e))
         }
     }
 }

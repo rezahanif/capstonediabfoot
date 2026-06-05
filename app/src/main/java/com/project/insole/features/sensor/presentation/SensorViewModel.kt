@@ -3,8 +3,8 @@ package com.project.insole.features.sensor.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.project.insole.core.ble.model.BleDeviceState
-import com.project.insole.features.sensor.data.repository.SensorRepository
 import com.project.insole.features.sensor.domain.model.InsoleSensorData
+import com.project.insole.features.sensor.domain.repository.SensorRepository
 import com.project.insole.features.sensor.domain.usecase.AnalyzePressureThresholdUseCase
 import com.project.insole.features.sensor.domain.usecase.MapPressureToGridUseCase
 import com.project.insole.features.sensor.domain.usecase.ProcessStepCountUseCase

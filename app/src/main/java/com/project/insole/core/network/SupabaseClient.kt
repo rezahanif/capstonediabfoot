@@ -1,16 +1,25 @@
 package com.project.insole.core.network
 
+import javax.inject.Inject
+import javax.inject.Singleton
+
 /**
- * Supabase Client initialization and generic network error handling.
- * Provides singleton access to Supabase client for auth and database operations.
+ * Supabase Client wrapper.
  */
-object SupabaseClient {
+@Singleton
+class SupabaseClient @Inject constructor() {
     
+    private var isInitialized = false
+    private var projectUrl: String? = null
+    private var anonKey: String? = null
+
     /**
      * Initialize Supabase client with project credentials.
      */
     fun initialize(projectUrl: String, anonKey: String) {
-        // Supabase client initialization
+        this.projectUrl = projectUrl
+        this.anonKey = anonKey
+        this.isInitialized = true
     }
 
     /**

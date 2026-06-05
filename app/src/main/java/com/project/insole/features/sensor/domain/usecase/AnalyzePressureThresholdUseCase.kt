@@ -1,6 +1,7 @@
 package com.project.insole.features.sensor.domain.usecase
 
 import com.project.insole.features.sensor.domain.model.InsoleSensorData
+import com.project.insole.features.sensor.domain.model.SensorConstants
 import javax.inject.Inject
 
 data class ThresholdAlert(
@@ -22,9 +23,6 @@ enum class AlertSeverity {
  */
 class AnalyzePressureThresholdUseCase @Inject constructor() {
 
-    private val PRESSURE_THRESHOLD = 200  // Example threshold in arbitrary units
-    private val CRITICAL_THRESHOLD = 300
-
     /**
      * Analyzes sensor data and returns alerts if thresholds are exceeded.
      */
@@ -33,7 +31,7 @@ class AnalyzePressureThresholdUseCase @Inject constructor() {
 
         sensorData.pressureValues.forEachIndexed { index, pressure ->
             when {
-                pressure >= CRITICAL_THRESHOLD -> {
+                pressure >= SensorConstants.PRESSURE_THRESHOLD_CRITICAL -> {
                     alerts.add(
                         ThresholdAlert(
                             message = "Critical pressure detected at zone $index",
@@ -42,7 +40,7 @@ class AnalyzePressureThresholdUseCase @Inject constructor() {
                         )
                     )
                 }
-                pressure >= PRESSURE_THRESHOLD -> {
+                pressure >= SensorConstants.PRESSURE_THRESHOLD_WARNING -> {
                     alerts.add(
                         ThresholdAlert(
                             message = "High pressure detected at zone $index",

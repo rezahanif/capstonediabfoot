@@ -3,23 +3,28 @@ package com.project.insole.features.sensor.data.datasource
 import android.annotation.SuppressLint
 import com.project.insole.core.ble.InsoleBleManager
 import com.project.insole.features.sensor.domain.model.InsoleSensorData
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
- * Parses raw bytes from ESP32 into Kotlin data classes.
- * Enhanced to handle Dual-BLE data streams (Left & Right).
+ * Collects raw BLE data from InsoleBleManager and aggregates it into domain models.
  */
 @SuppressLint("MissingPermission")
+@Singleton
 class BleSensorDataSource @Inject constructor(
     private val bleManager: InsoleBleManager
 ) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _sensorDataFlow = MutableStateFlow<InsoleSensorData?>(null)
     val sensorDataFlow: Flow<InsoleSensorData?> = _sensorDataFlow
 
-    // Expose raw strings for StepMetricCard consumption
     private val _rawLeftDataFlow = MutableStateFlow<String?>(null)
     val rawLeftDataFlow: Flow<String?> = _rawLeftDataFlow
 
@@ -30,8 +35,11 @@ class BleSensorDataSource @Inject constructor(
     private var currentRightData: String? = null
 
     init {
-        bleManager.setOnCharacteristicChangedListener { rawData, isLeft, address ->
-            onBleCharacteristicChanged(rawData, isLeft)
+        // Subscribe to telemetryFlow - the real data pipe from InsoleBleManager
+        scope.launch {
+            bleManager.telemetryFlow.collect { packet ->
+                onBleCharacteristicChanged(packet.data, packet.isLeft)
+            }
         }
     }
 
@@ -46,7 +54,6 @@ class BleSensorDataSource @Inject constructor(
             _rawRightDataFlow.value = dataString
         }
 
-        // Aggregate into a single InsoleSensorData object for standard dashboard metrics
         val sensorData = aggregateSensorData(currentLeftData, currentRightData)
         _sensorDataFlow.value = sensorData
     }
@@ -68,7 +75,7 @@ class BleSensorDataSource @Inject constructor(
             rightTemperature = rightTemp,
             leftPressure = leftPressure.toInt(),
             rightPressure = rightPressure.toInt(),
-            stepCount = 0, // Steps are now handled within StepsMetricCard FSM
+            stepCount = 0, // Steps are handled by domain service
             batteryLevel = 100,
             timestamp = System.currentTimeMillis()
         )

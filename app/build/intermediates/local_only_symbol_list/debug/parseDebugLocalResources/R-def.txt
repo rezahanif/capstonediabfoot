@@ -7,8 +7,11 @@ color purple_700
 color teal_200
 color teal_700
 color white
+drawable abu
+drawable biru
 drawable connect
 drawable foot
+drawable hijau
 drawable ic_arrow_back
 drawable ic_bell
 drawable ic_bluetooth
@@ -22,8 +25,14 @@ drawable ic_monitor
 drawable ic_trends
 drawable ic_visibility
 drawable ic_visibility_off
+drawable icon_home
+drawable icon_monitor
+drawable icon_notify
+drawable icon_trend
 drawable insole_hero
 drawable insole_pair
+drawable kuning
+drawable merah
 drawable sign_in
 drawable sign_up
 drawable stat

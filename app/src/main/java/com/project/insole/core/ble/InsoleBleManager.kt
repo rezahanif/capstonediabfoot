@@ -17,28 +17,41 @@ import android.content.Context
 import android.os.ParcelUuid
 import android.util.Log
 import com.project.insole.core.ble.model.BleDeviceState
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import java.util.UUID
+
+data class BleDataPacket(
+    val data: ByteArray,
+    val isLeft: Boolean,
+    val deviceAddress: String
+)
 
 data class ScannedDevice(
     val name: String,
     val address: String,
-    val rssi: Int
+    val rssi: Int,
+    val serviceUuid: String? = null
 )
 
 /**
  * Native BLE Manager handling GATT operations, scanning, and MTU configuration.
- * This is the single entry point for all BLE communication with the ESP32 insole.
+ * Enhanced to support two concurrent connections (Left & Right insoles).
  */
 @SuppressLint("MissingPermission")
-class InsoleBleManager(context: Context) : BluetoothGattCallback() {
+class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
 
-    private val context = context
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
     
-    private val _bleDeviceState = MutableStateFlow<BleDeviceState>(BleDeviceState.Disconnected)
-    val bleDeviceState: StateFlow<BleDeviceState> = _bleDeviceState
+    // Independent states for Left and Right insoles
+    private val _leftDeviceState = MutableStateFlow<BleDeviceState>(BleDeviceState.Disconnected)
+    val leftDeviceState: StateFlow<BleDeviceState> = _leftDeviceState
+
+    private val _rightDeviceState = MutableStateFlow<BleDeviceState>(BleDeviceState.Disconnected)
+    val rightDeviceState: StateFlow<BleDeviceState> = _rightDeviceState
 
     private val _scannedDevices = MutableStateFlow<List<ScannedDevice>>(emptyList())
     val scannedDevices: StateFlow<List<ScannedDevice>> = _scannedDevices
@@ -46,34 +59,48 @@ class InsoleBleManager(context: Context) : BluetoothGattCallback() {
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning
     
-    private var gatt: BluetoothGatt? = null
+    // ✅ Multicast flow for incoming data - avoids listener conflicts
+    private val _telemetryFlow = MutableSharedFlow<BleDataPacket>(extraBufferCapacity = 64)
+    val telemetryFlow = _telemetryFlow.asSharedFlow()
+
+    // Map to track multiple active GATT connections: address -> BluetoothGatt
+    private val activeGatts = mutableMapOf<String, BluetoothGatt>()
+
+    // ✅ Lock this address to its side permanently at connection time
+    private val addressToSide = mutableMapOf<String, Boolean>() // address -> isLeft
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             super.onScanResult(callbackType, result)
             result?.let {
                 val deviceName = it.device.name ?: "Unknown"
-                
-                // 1. Filter: Skip "Unknown" devices
                 if (deviceName == "Unknown") return@let
 
-                Log.d("InsoleBleManager", "Found device: $deviceName (${it.device.address})")
-                
+                // Extract Service UUID if available
+                val serviceUuid = it.scanRecord?.serviceUuids?.firstOrNull()?.toString()
+
                 val device = ScannedDevice(
                     name = deviceName,
                     address = it.device.address,
-                    rssi = it.rssi
+                    rssi = it.rssi,
+                    serviceUuid = serviceUuid
                 )
                 
-                // 2. Add and Sort: Prioritize "insole" at the top
                 val currentList = _scannedDevices.value.toMutableList()
                 currentList.removeAll { existing -> existing.address == device.address }
                 currentList.add(device)
                 
-                // Sort logic: "insole" first (case-insensitive), then others alphabetically
-                val sortedList = currentList.sortedWith(compareByDescending<ScannedDevice> { 
-                    it.name.contains("insole", ignoreCase = true) 
-                }.thenBy { it.name })
+                // Sort by:
+                // 1. Recognized Insole UUIDs first
+                // 2. Known "Smart_Insole" names second
+                // 3. RSSI (signal strength) third
+                val sortedList = currentList.sortedWith(
+                    compareByDescending<ScannedDevice> { 
+                        InsoleUUIDs.identifySide(it.serviceUuid) != "UNKNOWN"
+                    }.thenByDescending { 
+                        it.name.contains("Smart_Insole", ignoreCase = true) 
+                    }.thenByDescending { it.rssi }
+                )
                 
                 _scannedDevices.value = sortedList
             }
@@ -92,47 +119,25 @@ class InsoleBleManager(context: Context) : BluetoothGattCallback() {
         _isBluetoothEnabled.value = isBluetoothEnabled()
     }
 
-    /**
-     * Check if Bluetooth is enabled.
-     */
     fun isBluetoothEnabled(): Boolean {
         val enabled = bluetoothAdapter?.isEnabled == true
         _isBluetoothEnabled.value = enabled
         return enabled
     }
 
-    /**
-     * Start scanning for BLE devices with dual insole filters.
-     */
     fun startScanning() {
-        if (!isBluetoothEnabled()) {
-            Log.w("InsoleBleManager", "Bluetooth is disabled, cannot scan")
-            return
-        }
+        if (!isBluetoothEnabled()) return
         
-        val scanner = bluetoothAdapter?.bluetoothLeScanner
-        if (scanner == null) {
-            Log.e("InsoleBleManager", "BluetoothLeScanner is null. Is Bluetooth ON?")
-            _bleDeviceState.value = BleDeviceState.Error("Scanner not available")
-            return
-        }
+        val scanner = bluetoothAdapter?.bluetoothLeScanner ?: return
+        if (_isScanning.value) return
 
-        if (_isScanning.value) {
-            Log.d("InsoleBleManager", "Already scanning, ignoring start request")
-            return
-        }
-
-        Log.d("InsoleBleManager", "Starting BLE scan for Za and Pek insoles...")
         _isScanning.value = true
         _scannedDevices.value = emptyList()
 
-        // ── Dual Service UUID Filters ──────────────────────────────────────
-        val uuidZa = ParcelUuid.fromString("4fa2c732-ca9a-4c20-9492-c167df3c942a")
-        val uuidPek = ParcelUuid.fromString("4fa2c732-ca9a-4c20-9492-c167df3c942b")
-
+        // Filters for both Left and Right Service UUIDs
         val filters = listOf(
-            ScanFilter.Builder().setServiceUuid(uuidZa).build(),
-            ScanFilter.Builder().setServiceUuid(uuidPek).build()
+            ScanFilter.Builder().setServiceUuid(ParcelUuid.fromString(InsoleUUIDs.LEFT_SERVICE)).build(),
+            ScanFilter.Builder().setServiceUuid(ParcelUuid.fromString(InsoleUUIDs.RIGHT_SERVICE)).build()
         )
 
         val settings = ScanSettings.Builder()
@@ -142,174 +147,175 @@ class InsoleBleManager(context: Context) : BluetoothGattCallback() {
         scanner.startScan(filters, settings, scanCallback)
     }
 
-    /**
-     * Stop scanning for BLE devices.
-     */
     fun stopScanning() {
         bluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
         _isScanning.value = false
     }
 
     /**
-     * Connects to a BLE device by address.
+     * Connects to a device and attempts to identify if it is Left or Right.
      */
-    fun connect(deviceAddress: String) {
+    fun connect(deviceAddress: String, isLeft: Boolean? = null) {
         if (!isBluetoothEnabled()) return
         
-        val device = bluetoothAdapter?.getRemoteDevice(deviceAddress)
-        _bleDeviceState.value = BleDeviceState.Connecting
+        val device = bluetoothAdapter?.getRemoteDevice(deviceAddress) ?: return
         
-        gatt = device?.connectGatt(context, false, this)
+        // Use provided side if available, otherwise determine from UUID/Name
+        val determinedIsLeft = isLeft ?: run {
+            val scannedDevice = _scannedDevices.value.find { it.address == deviceAddress }
+            val uuidSide = InsoleUUIDs.identifySide(scannedDevice?.serviceUuid)
+            if (uuidSide != "UNKNOWN") uuidSide == "LEFT"
+            else device.name?.contains("Left", ignoreCase = true) ?: true
+        }
+
+        Log.d("InsoleBleManager", "Connecting to ${device.name ?: "SM"} ($deviceAddress) identified as ${if(determinedIsLeft) "LEFT" else "RIGHT"}")
+
+        // ✅ Lock this address to its side permanently
+        addressToSide[deviceAddress] = determinedIsLeft
+
+        if (determinedIsLeft) _leftDeviceState.value = BleDeviceState.Connecting
+        else _rightDeviceState.value = BleDeviceState.Connecting
+
+        val gatt = device.connectGatt(context, false, this)
+        activeGatts[deviceAddress] = gatt
     }
 
-    /**
-     * Disconnects from the current device.
-     */
-    fun disconnect() {
-        gatt?.disconnect()
-        gatt?.close()
-        gatt = null
-        _bleDeviceState.value = BleDeviceState.Disconnected
+    fun disconnect(deviceAddress: String? = null) {
+        if (deviceAddress != null) {
+            activeGatts[deviceAddress]?.let { gatt ->
+                gatt.disconnect()
+                gatt.close()
+                activeGatts.remove(deviceAddress)
+                addressToSide.remove(deviceAddress)
+            }
+        } else {
+            // Disconnect all
+            activeGatts.values.forEach { 
+                it.disconnect()
+                it.close()
+            }
+            activeGatts.clear()
+            addressToSide.clear()
+        }
     }
 
-    /**
-     * Requests MTU size update for faster data transfer.
-     * minSdk = 24, so LOLLIPOP (API 21) check is always true and omitted.
-     */
-    fun requestMtu(mtuSize: Int) {
-        gatt?.requestMtu(mtuSize)
-    }
-
-    /**
-     * Reads characteristic value from the device.
-     */
-    fun readCharacteristic(characteristic: BluetoothGattCharacteristic) {
-        gatt?.readCharacteristic(characteristic)
-    }
-
-    /**
-     * Writes data to a characteristic on the device.
-     */
-    fun writeCharacteristic(characteristic: BluetoothGattCharacteristic, data: ByteArray) {
-        characteristic.value = data
-        gatt?.writeCharacteristic(characteristic)
+    // Helper function to extract side directly from active device records
+    private fun determineSideFromGatt(gatt: BluetoothGatt): Boolean {
+        // 1. Primary check: Use verified Service UUIDs if available
+        val services = gatt.services
+        if (services.isNotEmpty()) {
+            for (service in services) {
+                val uuidStr = service.uuid.toString()
+                if (uuidStr.equals(InsoleUUIDs.LEFT_SERVICE, ignoreCase = true)) return true
+                if (uuidStr.equals(InsoleUUIDs.RIGHT_SERVICE, ignoreCase = true)) return false
+            }
+        }
+        
+        // 2. Fallback check: Read direct name profile strings if services aren't fully indexed yet
+        return gatt.device.name?.contains("Left", ignoreCase = true) ?: true
     }
 
     override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
         super.onConnectionStateChange(gatt, status, newState)
+        if (gatt == null) return
         
+        val address = gatt.device.address
+        // ✅ Use the pre-locked side, fallback to dynamic check only if not found
+        val isLeft = addressToSide[address] ?: determineSideFromGatt(gatt)
+
         when (newState) {
             BluetoothProfile.STATE_CONNECTED -> {
-                this.gatt = gatt
-                _bleDeviceState.value = BleDeviceState.Discovering
-                // Discover services after connection
-                gatt?.discoverServices()
+                updateDeviceState(isLeft, BleDeviceState.Discovering)
+                gatt.discoverServices()
             }
             BluetoothProfile.STATE_DISCONNECTED -> {
-                _bleDeviceState.value = BleDeviceState.Disconnected
-                this.gatt?.close()
-                this.gatt = null
+                // Ensure proper state cleanup on target channel path
+                updateDeviceState(isLeft, BleDeviceState.Disconnected)
+                gatt.close()
+                activeGatts.remove(address)
+                addressToSide.remove(address)
             }
         }
     }
 
     override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
         super.onServicesDiscovered(gatt, status)
+        if (gatt == null) return
         
-        if (status == BluetoothGatt.GATT_SUCCESS && gatt != null) {
-            Log.d("InsoleBleManager", "Services discovered. Enabling notifications...")
-            
-            // Loop through services and characteristics to find the one to notify
+        val address = gatt.device.address
+        // ✅ Reliable — uses the address-locked side
+        val isLeft = addressToSide[address] ?: determineSideFromGatt(gatt)
+
+        if (status == BluetoothGatt.GATT_SUCCESS) {
             gatt.services.forEach { service ->
                 service.characteristics.forEach { characteristic ->
-                    val properties = characteristic.properties
-                    if (properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY > 0) {
+                    if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY > 0) {
                         enableNotifications(gatt, characteristic)
                     }
                 }
             }
-            
-            _bleDeviceState.value = BleDeviceState.Connected
-            requestMtu(512)
+            updateDeviceState(isLeft, BleDeviceState.Connected)
         } else {
-            _bleDeviceState.value = BleDeviceState.Error("Service discovery failed")
+            updateDeviceState(isLeft, BleDeviceState.Error("Service discovery failed"))
         }
+    }
+
+    private fun updateDeviceState(isLeft: Boolean, state: BleDeviceState) {
+        if (isLeft) _leftDeviceState.value = state
+        else _rightDeviceState.value = state
     }
 
     private fun enableNotifications(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
         Log.d("InsoleBleManager", "Enabling notifications for ${characteristic.uuid}")
         gatt.setCharacteristicNotification(characteristic, true)
         
-        // Write to Descriptor to truly enable notifications on the peripheral
-        val descriptor = characteristic.getDescriptor(
-            java.util.UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
-        )
+        val descriptor = characteristic.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
         if (descriptor != null) {
-            descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-            gatt.writeDescriptor(descriptor)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                gatt.writeDescriptor(descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+            } else {
+                @Suppress("DEPRECATION")
+                descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                @Suppress("DEPRECATION")
+                gatt.writeDescriptor(descriptor)
+            }
         }
     }
 
-    override fun onCharacteristicRead(
-        gatt: BluetoothGatt?,
-        characteristic: BluetoothGattCharacteristic?,
-        status: Int
-    ) {
-        super.onCharacteristicRead(gatt, characteristic, status)
-        if (status == BluetoothGatt.GATT_SUCCESS && characteristic != null) {
-            // Data received - handle in BleSensorDataSource
-        }
-    }
-
-    override fun onCharacteristicWrite(
-        gatt: BluetoothGatt?,
-        characteristic: BluetoothGattCharacteristic?,
-        status: Int
-    ) {
-        super.onCharacteristicWrite(gatt, characteristic, status)
-        
-        if (status == BluetoothGatt.GATT_SUCCESS) {
-            // Write successful
-        } else {
-            _bleDeviceState.value = BleDeviceState.Error("Write failed")
-        }
-    }
-
+    // ── REQUIRED for API 33+ (use `value` param) ─────────────────────────────
     override fun onCharacteristicChanged(
-        gatt: BluetoothGatt?,
-        characteristic: BluetoothGattCharacteristic?
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray
     ) {
+        super.onCharacteristicChanged(gatt, characteristic, value)
+        handleCharacteristicChange(gatt, characteristic, value)
+    }
+
+    // ── REQUIRED for API < 33 (use `characteristic.value`) ──────────────────
+    @Deprecated("Deprecated in API 33")
+    @Suppress("DEPRECATION")
+    override fun onCharacteristicChanged(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?) {
         super.onCharacteristicChanged(gatt, characteristic)
-        
-        characteristic?.value?.let { bytes ->
-            // Notify listeners (BleSensorDataSource)
-            characteristicChangedListener?.invoke(bytes)
-        }
+        if (gatt == null || characteristic == null) return
+        val data = characteristic.value ?: return
+        handleCharacteristicChange(gatt, characteristic, data)
     }
 
-    private var characteristicChangedListener: ((ByteArray) -> Unit)? = null
-
-    fun setOnCharacteristicChangedListener(listener: (ByteArray) -> Unit) {
-        characteristicChangedListener = listener
-    }
-
-    override fun onDescriptorWrite(
-        gatt: BluetoothGatt?,
-        descriptor: BluetoothGattDescriptor?,
-        status: Int
+    private fun handleCharacteristicChange(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray
     ) {
-        super.onDescriptorWrite(gatt, descriptor, status)
+        val address = gatt.device.address
+        val isLeft = addressToSide[address] ?: return
         
-        if (status == BluetoothGatt.GATT_SUCCESS) {
-            // Notification enabled
-        }
+        // Broadcast via Flow instead of a single listener variable
+        _telemetryFlow.tryEmit(BleDataPacket(value, isLeft, address))
     }
 
-    override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
-        super.onMtuChanged(gatt, mtu, status)
-        
-        if (status == BluetoothGatt.GATT_SUCCESS) {
-            // MTU updated successfully
-        }
+    // Deprecated but maintained for multi-listener transition
+    fun setOnCharacteristicChangedListener(listener: (ByteArray, Boolean, String) -> Unit) {
+        // No longer used, but kept to avoid compile errors until callers migrate
     }
 }

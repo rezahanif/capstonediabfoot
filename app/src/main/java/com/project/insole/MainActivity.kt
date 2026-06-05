@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -17,8 +18,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.project.insole.core.ble.BleConnectionManager
+import com.project.insole.core.ble.BleViewModel
 import com.project.insole.core.theme.InsoleTheme
 import com.project.insole.core.ble.BleDevicePairingScreen
+import com.project.insole.features.auth.presentation.AuthViewModel
 import com.project.insole.features.auth.presentation.screens.LandingScreen
 import com.project.insole.features.auth.presentation.screens.LoginScreen
 import com.project.insole.features.auth.presentation.screens.SignUpScreen
@@ -53,6 +56,8 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
+                    val sharedBleViewModel: BleViewModel = hiltViewModel()
+
                     NavHost(navController = navController, startDestination = "landing") {
                         composable("landing") {
                             LandingScreen(
@@ -85,13 +90,21 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("main") {
+                            val authViewModel: AuthViewModel = hiltViewModel()
                             MainScreen(
-                                onNavigateToPairing = { navController.navigate("pairing") }
+                                onNavigateToPairing = { navController.navigate("pairing") },
+                                onLogout = {
+                                    authViewModel.logout()
+                                    navController.navigate("landing") {
+                                        popUpTo("main") { inclusive = true }
+                                    }
+                                },
+                                bleViewModel = sharedBleViewModel
                             )
                         }
                         composable("pairing") {
                             BleDevicePairingScreen(
-                                viewModel = hiltViewModel(),
+                                viewModel = sharedBleViewModel,
                                 onConnected = { navController.popBackStack() },
                                 onBack = { navController.popBackStack() }
                             )

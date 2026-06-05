@@ -26,7 +26,10 @@ data class SensorUiState(
     val thresholdAlerts: List<String> = emptyList(),
     val errorMessage: String? = null,
     val isConnected: Boolean = false,
-    val sessionDurationSeconds: Long = 0L
+    val sessionDurationSeconds: Long = 0L,
+    val rawBleLeft: String? = null,
+    val rawBleRight: String? = null,
+    val isRefreshing: Boolean = false
 )
 
 @HiltViewModel
@@ -54,6 +57,18 @@ class SensorViewModel @Inject constructor(
                 if (sensorData != null) {
                     updateSensorState(sensorData)
                 }
+            }
+        }
+        
+        viewModelScope.launch {
+            sensorRepository.getRawLeftDataFlow().collect { rawData ->
+                _sensorState.value = _sensorState.value.copy(rawBleLeft = rawData)
+            }
+        }
+
+        viewModelScope.launch {
+            sensorRepository.getRawRightDataFlow().collect { rawData ->
+                _sensorState.value = _sensorState.value.copy(rawBleRight = rawData)
             }
         }
     }
@@ -105,6 +120,14 @@ class SensorViewModel @Inject constructor(
     fun endSession() {
         sensorRepository.disconnect()
         stopSessionTimer()
+    }
+
+    fun refreshData() {
+        viewModelScope.launch {
+            _sensorState.value = _sensorState.value.copy(isRefreshing = true)
+            delay(1500) // Simulate refresh
+            _sensorState.value = _sensorState.value.copy(isRefreshing = false)
+        }
     }
 
     private fun updateSensorState(sensorData: InsoleSensorData) {

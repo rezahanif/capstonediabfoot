@@ -4,13 +4,11 @@ import com.project.insole.features.sensor.data.datasource.BleSensorDataSource
 import com.project.insole.features.sensor.data.datasource.SupabaseDataSource
 import com.project.insole.features.sensor.domain.model.InsoleSensorData
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
 import javax.inject.Inject
 
 /**
  * Repository is the single source of truth for sensor data.
  * Combines BLE real-time data with Supabase remote data.
- * Exposes immutable StateFlow to presentation layer.
  */
 class SensorRepositoryImpl @Inject constructor(
     private val bleSensorDataSource: BleSensorDataSource,
@@ -18,13 +16,15 @@ class SensorRepositoryImpl @Inject constructor(
     private val bleManager: com.project.insole.core.ble.InsoleBleManager
 ) : SensorRepository {
 
-    override fun getSensorDataFlow(): Flow<InsoleSensorData?> {
-        // Combine BLE live data with any remote cached data
-        return bleSensorDataSource.sensorDataFlow
-    }
+    override fun getSensorDataFlow(): Flow<InsoleSensorData?> = bleSensorDataSource.sensorDataFlow
+
+    override fun getRawLeftDataFlow(): Flow<String?> = bleSensorDataSource.rawLeftDataFlow
+    
+    override fun getRawRightDataFlow(): Flow<String?> = bleSensorDataSource.rawRightDataFlow
 
     override fun getConnectionState(): Flow<com.project.insole.core.ble.model.BleDeviceState> {
-        return bleManager.bleDeviceState
+        // Return a combined state or separate ones. For now, using a placeholder.
+        return bleManager.leftDeviceState 
     }
 
     override fun disconnect() {
@@ -42,6 +42,8 @@ class SensorRepositoryImpl @Inject constructor(
 
 interface SensorRepository {
     fun getSensorDataFlow(): Flow<InsoleSensorData?>
+    fun getRawLeftDataFlow(): Flow<String?>
+    fun getRawRightDataFlow(): Flow<String?>
     fun getConnectionState(): Flow<com.project.insole.core.ble.model.BleDeviceState>
     fun disconnect()
     suspend fun uploadSensorData(sensorData: InsoleSensorData): Result<Unit>

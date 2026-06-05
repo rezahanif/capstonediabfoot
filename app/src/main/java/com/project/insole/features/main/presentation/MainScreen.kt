@@ -14,7 +14,7 @@ import com.project.insole.core.theme.DashboardColors
 import com.project.insole.features.main.presentation.components.NavItem
 import com.project.insole.features.main.presentation.components.SausageBottomNav
 import com.project.insole.features.notifications.presentation.NotificationsScreen
-import com.project.insole.features.sensor.presentation.screens.DashboardScreen
+import com.project.insole.features.tracking.presentation.screens.DashboardScreen
 import com.project.insole.features.sensor.presentation.screens.MonitoringScreen
 import com.project.insole.features.trends.presentation.components.TrendsScreen
 import com.project.insole.features.trends.presentation.TrendsViewModel
@@ -23,17 +23,19 @@ import com.project.insole.features.sensor.presentation.SensorViewModel
 
 @Composable
 fun MainScreen(
-    onNavigateToPairing: () -> Unit
+    onNavigateToPairing: () -> Unit,
+    onLogout: () -> Unit,
+    bleViewModel: com.project.insole.core.ble.BleViewModel
 ) {
     val bottomNavController = rememberNavController()
     val navBackStackEntry by bottomNavController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
     val navItems = listOf(
-        NavItem(icon = R.drawable.ic_home,    label = "Home"),
-        NavItem(icon = R.drawable.ic_monitor, label = "Monitoring"),
-        NavItem(icon = R.drawable.ic_bell,    label = "Alerts"),
-        NavItem(icon = R.drawable.ic_trends,  label = "Trends"),
+        NavItem(icon = R.drawable.icon_home,    label = "Home"),
+        NavItem(icon = R.drawable.icon_monitor, label = "Monitoring"),
+        NavItem(icon = R.drawable.icon_notify,    label = "Alerts"),
+        NavItem(icon = R.drawable.icon_trend,  label = "Trends"),
     )
 
     // Map route to index for the SausageBottomNav
@@ -72,12 +74,15 @@ fun MainScreen(
             composable("home_tab") {
                 DashboardScreen(
                     viewModel = sensorViewModel,
-                    onNavigateToPairing = onNavigateToPairing
+                    bleViewModel = bleViewModel,
+                    onNavigateToPairing = onNavigateToPairing,
+                    onLogout = onLogout
                 )
             }
             composable("monitoring_tab") {
                 MonitoringScreen(
                     viewModel = sensorViewModel,
+                    bleViewModel = bleViewModel,
                     onBack = { 
                         bottomNavController.navigate("home_tab") {
                             popUpTo("home_tab") { inclusive = true }

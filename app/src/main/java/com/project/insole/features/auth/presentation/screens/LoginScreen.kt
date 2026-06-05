@@ -29,26 +29,15 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.project.insole.R
 import com.project.insole.core.presentation.components.InsoleToast
 import com.project.insole.core.presentation.components.ToastData
 import com.project.insole.core.presentation.components.ToastType
+import com.project.insole.core.theme.AuthColors
 import com.project.insole.features.auth.presentation.AuthViewModel
 import kotlinx.coroutines.delay
-
-// ─── Design Tokens (matching LandingScreen + Figma node 129-955) ──────────────
-private val ColorGradientTop    = Color(0xFF114797)   // #114797
-private val ColorGradientBottom = Color(0xFF112B4E)   // #112B4E
-private val ColorButtonBg       = Color(0xFF114784)   // #114784 (primary blue button)
-private val ColorTextLight      = Color(0xFFEBF1FF)   // #EBF1FF (headline + subtitle)
-private val ColorCardBg         = Color(0xFFC9DBF2).copy(alpha = 0.05f)   // semi-transparent card surface
-private val ColorInputBorder    = Color(0xFF2A5BAD)   // input field border
-private val ColorInputBg        = Color(0xFF1E4585)   // input field background
-private val ColorHint           = Color(0xFF8AAAD8)   // placeholder / hint text
-private val ColorDivider        = Color(0xFF2A5BAD)   // "or continue with" divider
 
 /**
  * Login screen — matching Figma CAPSTONE node 129-955.
@@ -89,8 +78,8 @@ fun LoginScreen(
             .background(
                 brush = Brush.verticalGradient(
                     colorStops = arrayOf(
-                        0.0f to ColorGradientTop,
-                        1.0f to ColorGradientBottom,
+                        0.0f to AuthColors.GradientTop,
+                        1.0f to AuthColors.GradientBottom,
                     )
                 )
             )
@@ -156,7 +145,7 @@ fun LoginScreen(
                 ) {
                     Text(
                         text = "SmartInsole",
-                        color = ColorTextLight,
+                        color = AuthColors.TextLight,
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp,
@@ -164,7 +153,7 @@ fun LoginScreen(
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = "Smarter Steps\nBetter You",
-                        color = ColorTextLight,
+                        color = AuthColors.TextLight,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Normal,
                         letterSpacing = 0.5.sp,
@@ -213,7 +202,7 @@ fun LoginScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(ColorCardBg)
+                    .background(AuthColors.CardBg)
                     .border(
                         width = 1.dp,
                         color = Color.White.copy(alpha = 0.10f),
@@ -237,7 +226,7 @@ fun LoginScreen(
                     // Subtitle
                     Text(
                         text = "Welcome back! Please sign in to continue",
-                        color = ColorHint,
+                        color = AuthColors.Hint,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center,
                         lineHeight = 18.sp,
@@ -260,7 +249,7 @@ fun LoginScreen(
                             placeholder = {
                                 Text(
                                     text = "Enter your email address",
-                                    color = ColorHint,
+                                    color = AuthColors.Hint,
                                     fontSize = 13.sp,
                                 )
                             },
@@ -268,7 +257,7 @@ fun LoginScreen(
                                 Icon(
                                     painter = painterResource(id = R.drawable.ic_email),
                                     contentDescription = null,
-                                    tint = ColorHint,
+                                    tint = AuthColors.Hint,
                                     modifier = Modifier.size(18.dp),
                                 )
                             },
@@ -279,10 +268,10 @@ fun LoginScreen(
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White,
-                                focusedContainerColor = ColorInputBg,
-                                unfocusedContainerColor = ColorInputBg,
+                                focusedContainerColor = AuthColors.InputBg,
+                                unfocusedContainerColor = AuthColors.InputBg,
                                 focusedBorderColor = Color.White.copy(alpha = 0.4f),
-                                unfocusedBorderColor = ColorInputBorder,
+                                unfocusedBorderColor = AuthColors.InputBorder,
                                 cursorColor = Color.White,
                             ),
                         )
@@ -305,7 +294,7 @@ fun LoginScreen(
                             placeholder = {
                                 Text(
                                     text = "Enter your password",
-                                    color = ColorHint,
+                                    color = AuthColors.Hint,
                                     fontSize = 13.sp,
                                 )
                             },
@@ -313,7 +302,7 @@ fun LoginScreen(
                                 Icon(
                                     painter = painterResource(id = R.drawable.ic_lock),
                                     contentDescription = null,
-                                    tint = ColorHint,
+                                    tint = AuthColors.Hint,
                                     modifier = Modifier.size(18.dp),
                                 )
                             },
@@ -326,7 +315,7 @@ fun LoginScreen(
                                         ),
                                         contentDescription = if (passwordVisible) "Hide password"
                                         else "Show password",
-                                        tint = ColorHint,
+                                        tint = AuthColors.Hint,
                                         modifier = Modifier.size(20.dp),
                                     )
                                 }
@@ -342,10 +331,10 @@ fun LoginScreen(
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White,
-                                focusedContainerColor = ColorInputBg,
-                                unfocusedContainerColor = ColorInputBg,
+                                focusedContainerColor = AuthColors.InputBg,
+                                unfocusedContainerColor = AuthColors.InputBg,
                                 focusedBorderColor = Color.White.copy(alpha = 0.4f),
-                                unfocusedBorderColor = ColorInputBorder,
+                                unfocusedBorderColor = AuthColors.InputBorder,
                                 cursorColor = Color.White,
                             ),
                         )
@@ -371,8 +360,7 @@ fun LoginScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(60.dp)
-                            .clip(RoundedCornerShape(50.dp))
-                            ,
+                            .clip(RoundedCornerShape(50.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
                         Button(
@@ -404,14 +392,14 @@ fun LoginScreen(
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.sp,
-                                    color = ColorButtonBg,
+                                    color = AuthColors.ButtonBg,
                                 )
 
                                 Box(
                                     modifier = Modifier
                                         .size(40.dp)
                                         .background(
-                                            color = ColorButtonBg,
+                                            color = AuthColors.ButtonBg,
                                             shape = CircleShape,
                                         ),
                                     contentAlignment = Alignment.Center,
@@ -429,16 +417,16 @@ fun LoginScreen(
                     }
 
                     Spacer(Modifier.height(24.dp))
+
+
                 }
             }
-
-
 
             Spacer(Modifier.height(24.dp))
 
             // ── "Don't have an account? Sign Up" ─────────────────────────────
             val footerText = buildAnnotatedString {
-                withStyle(SpanStyle(color = ColorTextLight, fontSize = 13.sp)) {
+                withStyle(SpanStyle(color = AuthColors.TextLight, fontSize = 13.sp)) {
                     append("Don't have an account? ")
                 }
                 withStyle(

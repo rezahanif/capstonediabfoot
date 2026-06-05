@@ -9,9 +9,7 @@ import javax.inject.Inject
 
 /**
  * Parses raw bytes from ESP32 into Kotlin data classes.
- * Connected to InsoleBleManager to receive real BLE data.
- * This is the ONLY place where BLE byte parsing happens.
- * All other layers receive clean domain models.
+ * Enhanced to handle Dual-BLE data streams (Left & Right).
  */
 @SuppressLint("MissingPermission")
 class BleSensorDataSource @Inject constructor(
@@ -21,45 +19,58 @@ class BleSensorDataSource @Inject constructor(
     private val _sensorDataFlow = MutableStateFlow<InsoleSensorData?>(null)
     val sensorDataFlow: Flow<InsoleSensorData?> = _sensorDataFlow
 
+    // Expose raw strings for StepMetricCard consumption
+    private val _rawLeftDataFlow = MutableStateFlow<String?>(null)
+    val rawLeftDataFlow: Flow<String?> = _rawLeftDataFlow
+
+    private val _rawRightDataFlow = MutableStateFlow<String?>(null)
+    val rawRightDataFlow: Flow<String?> = _rawRightDataFlow
+
+    private var currentLeftData: String? = null
+    private var currentRightData: String? = null
+
     init {
-        // Automatically start listening to BLE data when this source is created
-        bleManager.setOnCharacteristicChangedListener { rawData ->
-            onBleCharacteristicChanged(rawData)
+        bleManager.setOnCharacteristicChangedListener { rawData, isLeft, address ->
+            onBleCharacteristicChanged(rawData, isLeft)
         }
     }
 
-    /**
-     * Parses raw BLE characteristic data (Comma-separated String) into sensor readings.
-     * Format: "accX,accY,accZ,gyroX,gyroY,gyroZ,pressure,temperature"
-     */
-    fun parseRawBleData(rawData: ByteArray): InsoleSensorData {
+    private fun onBleCharacteristicChanged(rawData: ByteArray, isLeft: Boolean) {
         val dataString = String(rawData, Charsets.UTF_8)
-        val parts = dataString.split(",")
         
-        // Default values if parsing fails or string is incomplete
-        var pressure = 0f
-        var temperature = 0f
-        
-        if (parts.size >= 8) {
-            pressure = parts[6].toFloatOrNull() ?: 0f
-            temperature = parts[7].toFloatOrNull() ?: 0f
+        if (isLeft) {
+            currentLeftData = dataString
+            _rawLeftDataFlow.value = dataString
+        } else {
+            currentRightData = dataString
+            _rawRightDataFlow.value = dataString
         }
 
+        // Aggregate into a single InsoleSensorData object for standard dashboard metrics
+        val sensorData = aggregateSensorData(currentLeftData, currentRightData)
+        _sensorDataFlow.value = sensorData
+    }
+
+    private fun aggregateSensorData(leftRaw: String?, rightRaw: String?): InsoleSensorData {
+        val leftParts = leftRaw?.split(",") ?: emptyList()
+        val rightParts = rightRaw?.split(",") ?: emptyList()
+
+        val leftPressure = if (leftParts.size >= 8) leftParts[6].toFloatOrNull() ?: 0f else 0f
+        val rightPressure = if (rightParts.size >= 8) rightParts[6].toFloatOrNull() ?: 0f else 0f
+        
+        val leftTemp = if (leftParts.size >= 8) leftParts[7].toFloatOrNull() ?: 0f else 0f
+        val rightTemp = if (rightParts.size >= 8) rightParts[7].toFloatOrNull() ?: 0f else 0f
+
         return InsoleSensorData(
-            pressureValues = listOf(pressure.toInt()),
-            temperature = temperature,
-            leftTemperature = temperature,
-            rightTemperature = 0f,
-            leftPressure = pressure.toInt(),
-            rightPressure = 0,
-            stepCount = 0,
+            pressureValues = listOf(leftPressure.toInt(), rightPressure.toInt()),
+            temperature = (leftTemp + rightTemp) / if (leftTemp > 0 && rightTemp > 0) 2f else 1f,
+            leftTemperature = leftTemp,
+            rightTemperature = rightTemp,
+            leftPressure = leftPressure.toInt(),
+            rightPressure = rightPressure.toInt(),
+            stepCount = 0, // Steps are now handled within StepsMetricCard FSM
             batteryLevel = 100,
             timestamp = System.currentTimeMillis()
         )
-    }
-
-    fun onBleCharacteristicChanged(rawData: ByteArray) {
-        val sensorData = parseRawBleData(rawData)
-        _sensorDataFlow.value = sensorData
     }
 }

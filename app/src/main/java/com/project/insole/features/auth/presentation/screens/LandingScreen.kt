@@ -1,4 +1,5 @@
 package com.project.insole.features.auth.presentation.screens
+
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -21,20 +22,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.project.insole.R
-
-// ─── Design Tokens (from Figma) ───────────────────────────────────────────────
-private val ColorGradientTop   = Color(0xFF114797)   // #114797  (top / center)
-private val ColorGradientBottom = Color(0xFF112B4E)  // #112B4E  (bottom)
-private val ColorButtonBg      = Color(0xFF114784)   // #114784  (pill background)
-private val ColorButtonPill    = Color(0xFFFFFFFF)   // white pill container
-private val ColorTextLight     = Color(0xFFEBF1FF)   // #EBF1FF  (headline + subtitle)
+import com.project.insole.core.theme.AuthColors
 
 /**
  * Landing screen — redesigned from the Figma CAPSTONE node 19-4569.
  *
  * Layout (top → bottom):
- *  • Full-screen gradient background  (#114797 → #112B4E)
- *  • "SmartInsole" headline  (top-right area)
+ *  • Full-screen gradient background
+ *  • "SmartInsole" headline
  *  • "Smarter Steps / Better You" subtitle
  *  • Centred hero product image
  *  • Two pill buttons at the bottom: SIGN IN  |  SIGN UP
@@ -50,8 +45,8 @@ fun LandingScreen(
             .background(
                 brush = Brush.verticalGradient(
                     colorStops = arrayOf(
-                        0.0f to ColorGradientTop,
-                        1.0f to ColorGradientBottom,
+                        0.0f to AuthColors.GradientTop,
+                        1.0f to AuthColors.GradientBottom,
                     )
                 )
             )
@@ -66,7 +61,7 @@ fun LandingScreen(
         ) {
             Text(
                 text = "SmartInsole",
-                color = ColorTextLight,
+                color = AuthColors.TextLight,
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp,
@@ -74,7 +69,7 @@ fun LandingScreen(
             Spacer(Modifier.height(6.dp))
             Text(
                 text = "Smarter Steps\nBetter You",
-                color = ColorTextLight,
+                color = AuthColors.TextLight,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Normal,
                 letterSpacing = 1.sp,
@@ -84,9 +79,6 @@ fun LandingScreen(
         }
 
         // ── Hero product image (centred, fills most of the screen) ───────────
-        // Replace R.drawable.insole_hero with the actual drawable resource name
-        // in your project.  The image should be the "two white insoles" asset
-        // exported from the Figma file.
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
@@ -128,7 +120,7 @@ fun LandingScreen(
             Box(
                 modifier = Modifier
                     .size(50.dp)
-                    .offset(x = width * 0.67f, y = height * 0.165f)
+                    .offset(x = width * 0.65f, y = height * 0.12f)
                     .background(
                         brush = Brush.linearGradient(
                             colors = listOf(Color(0xFF114797), Color(0xFF174F9F))
@@ -136,19 +128,22 @@ fun LandingScreen(
                         shape = CircleShape
                     )
                     .border(width = 1.dp, color = Color.White.copy(alpha = 0.15f), shape = CircleShape),
-                contentAlignment = Alignment.Center // Automatically aligns the icon perfectly in the middle
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.connect),
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp) // Keeps it smaller than the 50.dp container
+                contentAlignment = Alignment.Center
+            ){
+                androidx.compose.foundation.Image(
+                    painter = painterResource(id = R.drawable.connect), // 💡 Swap with your user or profile avatar asset
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier
+                        .size(28.dp)
+                    , // Clips the image to fit the circle perfectly
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
                 )
             }
             
             Box(
                 modifier = Modifier
                     .size(50.dp)
-                    .offset(x = width * 0.65f, y = height * 0.42f)
+                    .offset(x = width * 0.67f, y = height * 0.35f)
                     .background(
                         brush = Brush.linearGradient(
                             colors = listOf(Color(0xFF114797), Color(0xFF174F9F))
@@ -158,17 +153,20 @@ fun LandingScreen(
                     .border(width = 1.dp, color = Color.White.copy(alpha = 0.15f), shape = CircleShape),
                 contentAlignment = Alignment.Center
             ){
-                Image(
-                    painter = painterResource(id = R.drawable.foot),
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp) // Keeps it smaller than the 50.dp container
+                androidx.compose.foundation.Image(
+                    painter = painterResource(id = R.drawable.foot), // 💡 Swap with your user or profile avatar asset
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier
+                        .size(28.dp)
+                    , // Clips the image to fit the circle perfectly
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
                 )
             }
 
             Box(
                 modifier = Modifier
                     .size(50.dp)
-                    .offset(x = width * 0.38f, y = height * -0.014f)
+                    .offset(x = width * 0.41f, y = height * -0.03f)
                     .background(
                         brush = Brush.linearGradient(
                             colors = listOf(Color(0xFF114797), Color(0xFF174F9F))
@@ -178,34 +176,38 @@ fun LandingScreen(
                     .border(width = 1.dp, color = Color.White.copy(alpha = 0.15f), shape = CircleShape),
                 contentAlignment = Alignment.Center
             ){
-                Image(
-                    painter = painterResource(id = R.drawable.stat),
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp) // Keeps it smaller than the 50.dp container
+                androidx.compose.foundation.Image(
+                    painter = painterResource(id = R.drawable.stat), // 💡 Swap with your user or profile avatar asset
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier
+                        .size(24.dp)
+                        , // Clips the image to fit the circle perfectly
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
                 )
             }
         }
 
+        // ── Bottom CTA buttons ───────────────────────────────────────────────
         // ── Bottom CTA buttons ───────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(horizontal = 23.dp, vertical = 32.dp),
-            horizontalArrangement = Arrangement.spacedBy(-10.dp),
+            horizontalArrangement = Arrangement.spacedBy(-10.dp), // Keeps your intentional overlapping layout design
         ) {
-            // SIGN IN
+            // SIGN IN (Added your login/arrow icon resource here)
             PillButton(
                 label = "SIGN IN",
-                iconResId = R.drawable.sign_in,
+                icon = R.drawable.sign_in, // 💡 Change this to match your actual drawable resource filename
                 modifier = Modifier.weight(1f),
                 onClick = onNavigateToLogin,
             )
 
-            // SIGN UP
+            // SIGN UP (Added your add/person icon resource here)
             PillButton(
                 label = "SIGN UP",
-                iconResId = R.drawable.sign_up,
+                icon = R.drawable.sign_up, // 💡 Change this to match your actual drawable resource filename
                 modifier = Modifier.weight(1f),
                 onClick = onNavigateToSignUp,
             )
@@ -214,23 +216,20 @@ fun LandingScreen(
 }
 
 /**
- * Reusable pill-shaped CTA button that matches the Figma design:
- *  • White outer container (rounded-50px, height 79 dp)
- *  • Blue inner button   (rounded-50px, height 56 dp, color #114784)
- *  • Uppercase bold label in white, letter-spacing 4 sp
+ * Reusable pill-shaped CTA button with Icon Support.
  */
 @Composable
 private fun PillButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    @DrawableRes iconResId: Int? = null, // 1. Add an optional icon parameter
+    @DrawableRes icon: Int? = null, // Restored optional icon token parameter
 ) {
     Box(
         modifier = modifier
             .height(79.dp)
             .clip(RoundedCornerShape(50.dp))
-            .background(ColorButtonPill),
+            .background(Color.White),
         contentAlignment = Alignment.Center,
     ) {
         Button(
@@ -241,7 +240,7 @@ private fun PillButton(
                 .height(56.dp),
             shape = RoundedCornerShape(50.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = ColorButtonBg,
+                containerColor = AuthColors.ButtonBg,
                 contentColor = Color.White,
             ),
             contentPadding = PaddingValues(horizontal = 16.dp),
@@ -250,27 +249,27 @@ private fun PillButton(
                 pressedElevation = 2.dp
             ),
         ) {
-            // 2. Wrap the layout in a Row to place items side-by-side
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                // 3. Render the icon if it is provided
                 Text(
                     text = label,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 4.sp,
                 )
-                Spacer(modifier = Modifier.width(12.dp)) // Distance between icon and text
-                if (iconResId != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                // If an icon asset is passed down, draw it cleanly alongside the text spacer boundary
+                if (icon != null) {
                     Icon(
-                        painter = painterResource(id = iconResId),
-                        contentDescription = null, // Set to a string if needed for accessibility
-                        modifier = Modifier.size(30.dp), // Adjust the size as you like
-                        tint = Color.White // Forces the icon to match your white text color
+                        painter = painterResource(id = icon),
+                        contentDescription = null, // Decorative icon
+                        modifier = Modifier.size(25.dp)
                     )
                 }
+
+
             }
         }
     }

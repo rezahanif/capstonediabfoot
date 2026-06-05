@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.project.insole.features.auth.domain.LoginUseCase
 import com.project.insole.features.auth.domain.LogoutUseCase
+import com.project.insole.features.auth.domain.SignUpUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +25,7 @@ data class AuthUiState(
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val loginUseCase: LoginUseCase,
+    private val signUpUseCase: SignUpUseCase,
     private val logoutUseCase: LogoutUseCase
 ) : ViewModel() {
 
@@ -32,8 +34,20 @@ class AuthViewModel @Inject constructor(
 
     fun login(email: String, password: String) {
         viewModelScope.launch {
-            _authState.value = _authState.value.copy(isLoading = true)
+            _authState.value = _authState.value.copy(isLoading = true, errorMessage = null)
             val result = loginUseCase(email, password)
+            result.onSuccess {
+                _authState.value = AuthUiState(isLoggedIn = true)
+            }.onFailure { exception ->
+                _authState.value = AuthUiState(errorMessage = exception.message)
+            }
+        }
+    }
+
+    fun signUp(email: String, password: String) {
+        viewModelScope.launch {
+            _authState.value = _authState.value.copy(isLoading = true, errorMessage = null)
+            val result = signUpUseCase(email, password)
             result.onSuccess {
                 _authState.value = AuthUiState(isLoggedIn = true)
             }.onFailure { exception ->

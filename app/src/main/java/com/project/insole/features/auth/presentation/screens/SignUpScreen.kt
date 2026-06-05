@@ -1,6 +1,8 @@
 package com.project.insole.features.auth.presentation.screens
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -217,282 +219,305 @@ fun SignUpScreen(
                         textAlign = TextAlign.Center,
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = if (currentStep == 0)
-                            "Create your account to get started"
-                        else
-                            "Pair your device to get started",
-                        color = ColorHint,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 18.sp,
-                    )
+                    AnimatedContent(
+                        targetState = currentStep,
+                        transitionSpec = {
+                            fadeIn(animationSpec = tween(300)) togetherWith
+                                    fadeOut(animationSpec = tween(300))
+                        },
+                        label = "StepDescriptionTransition"
+                    ) { step ->
+                        Text(
+                            text = if (step == 0)
+                                "Create your account to get started"
+                            else
+                                "Pair your device to get started",
+                            color = ColorHint,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp,
+                        )
+                    }
 
                     Spacer(Modifier.height(20.dp))
 
-                    if (currentStep == 0) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                text = "Email",
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
+                    AnimatedContent(
+                        targetState = currentStep,
+                        transitionSpec = {
+                            if (targetState > initialState) {
+                                (slideInHorizontally { width -> width } + fadeIn()).togetherWith(
+                                    slideOutHorizontally { width -> -width } + fadeOut())
+                            } else {
+                                (slideInHorizontally { width -> -width } + fadeIn()).togetherWith(
+                                    slideOutHorizontally { width -> width } + fadeOut())
+                            }.using(
+                                SizeTransform(clip = false)
                             )
-                            Spacer(Modifier.height(6.dp))
-                            OutlinedTextField(
-                                value = email,
-                                onValueChange = { email = it },
-                                placeholder = {
-                                    Text("Enter your email address", color = ColorHint, fontSize = 13.sp)
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_email),
-                                        contentDescription = null,
-                                        tint = ColorHint,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = signUpTextFieldColors(),
-                            )
-                        }
-
-                        Spacer(Modifier.height(14.dp))
-
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                text = "Password",
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            OutlinedTextField(
-                                value = password,
-                                onValueChange = { password = it },
-                                placeholder = {
-                                    Text("Enter your password", color = ColorHint, fontSize = 13.sp)
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_lock),
-                                        contentDescription = null,
-                                        tint = ColorHint,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                },
-                                trailingIcon = {
-                                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                        Icon(
-                                            painter = painterResource(
-                                                id = if (passwordVisible) R.drawable.ic_visibility
-                                                else R.drawable.ic_visibility_off
-                                            ),
-                                            contentDescription = null,
-                                            tint = ColorHint,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                },
-                                visualTransformation = if (passwordVisible)
-                                    VisualTransformation.None else PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = signUpTextFieldColors(),
-                            )
-                        }
-
-                        Spacer(Modifier.height(14.dp))
-
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                text = "Re-enter Password",
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            OutlinedTextField(
-                                value = rePassword,
-                                onValueChange = { rePassword = it },
-                                placeholder = {
-                                    Text("Enter your password", color = ColorHint, fontSize = 13.sp)
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_lock),
-                                        contentDescription = null,
-                                        tint = ColorHint,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                },
-                                trailingIcon = {
-                                    IconButton(onClick = { rePasswordVisible = !rePasswordVisible }) {
-                                        Icon(
-                                            painter = painterResource(
-                                                id = if (rePasswordVisible) R.drawable.ic_visibility
-                                                else R.drawable.ic_visibility_off
-                                            ),
-                                            contentDescription = null,
-                                            tint = ColorHint,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                },
-                                visualTransformation = if (rePasswordVisible)
-                                    VisualTransformation.None else PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = signUpTextFieldColors(),
-                            )
-                        }
-
-                        Spacer(Modifier.height(20.dp))
-                        StepIndicator(currentStep = 0, totalSteps = 2)
-                        Spacer(Modifier.height(16.dp))
-
-                        Button(
-                            onClick = { currentStep = 1 },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp),
-                            shape = RoundedCornerShape(50.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.White,
-                                contentColor = ColorButtonBg,
-                            ),
-                            elevation = ButtonDefaults.buttonElevation(
-                                defaultElevation = 6.dp,
-                                pressedElevation = 2.dp,
-                            ),
-                            enabled = email.isNotBlank() && password.isNotBlank() && rePassword.isNotBlank() && password == rePassword,
-                        ) {
-                            Text(
-                                text = "Next",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp,
-                                color = ColorButtonBg,
-                            )
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            InsoleCard(
-                                label = "Left\nInsole",
-                                isPaired = leftPaired,
-                                mirrored = false,
-                                modifier = Modifier.weight(1f),
-                                onClick = { leftPaired = !leftPaired },
-                            )
-                            InsoleCard(
-                                label = "Right\nInsole",
-                                isPaired = rightPaired,
-                                mirrored = true,
-                                modifier = Modifier.weight(1f),
-                                onClick = { rightPaired = !rightPaired },
-                            )
-                        }
-
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            text = "Make sure both insoles are powered on",
-                            color = ColorHint,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.height(20.dp))
-                        StepIndicator(currentStep = 1, totalSteps = 2)
-                        Spacer(Modifier.height(16.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Button(
-                                onClick = { currentStep = 0 },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(60.dp),
-                                shape = RoundedCornerShape(50.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.White,
-                                    contentColor = ColorButtonBg,
-                                ),
-                                elevation = ButtonDefaults.buttonElevation(
-                                    defaultElevation = 6.dp,
-                                    pressedElevation = 2.dp,
-                                ),
-                            ) {
+                        },
+                        label = "SignUpStepTransition"
+                    ) { step ->
+                        if (step == 0) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
                                 Text(
-                                    text = "Back",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp,
-                                    color = ColorButtonBg,
+                                    text = "Email",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
                                 )
-                            }
+                                Spacer(Modifier.height(6.dp))
+                                OutlinedTextField(
+                                    value = email,
+                                    onValueChange = { email = it },
+                                    placeholder = {
+                                        Text("Enter your email address", color = ColorHint, fontSize = 13.sp)
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.ic_email),
+                                            contentDescription = null,
+                                            tint = ColorHint,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = signUpTextFieldColors(),
+                                )
 
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(60.dp)
-                                    .clip(RoundedCornerShape(50.dp)),
-                                contentAlignment = Alignment.Center,
-                            ) {
+                                Spacer(Modifier.height(14.dp))
+
+                                Text(
+                                    text = "Password",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                OutlinedTextField(
+                                    value = password,
+                                    onValueChange = { password = it },
+                                    placeholder = {
+                                        Text("Enter your password", color = ColorHint, fontSize = 13.sp)
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.ic_lock),
+                                            contentDescription = null,
+                                            tint = ColorHint,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    },
+                                    trailingIcon = {
+                                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                            Icon(
+                                                painter = painterResource(
+                                                    id = if (passwordVisible) R.drawable.ic_visibility
+                                                    else R.drawable.ic_visibility_off
+                                                ),
+                                                contentDescription = null,
+                                                tint = ColorHint,
+                                                modifier = Modifier.size(20.dp),
+                                            )
+                                        }
+                                    },
+                                    visualTransformation = if (passwordVisible)
+                                        VisualTransformation.None else PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = signUpTextFieldColors(),
+                                )
+
+                                Spacer(Modifier.height(14.dp))
+
+                                Text(
+                                    text = "Re-enter Password",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                OutlinedTextField(
+                                    value = rePassword,
+                                    onValueChange = { rePassword = it },
+                                    placeholder = {
+                                        Text("Enter your password", color = ColorHint, fontSize = 13.sp)
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.ic_lock),
+                                            contentDescription = null,
+                                            tint = ColorHint,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    },
+                                    trailingIcon = {
+                                        IconButton(onClick = { rePasswordVisible = !rePasswordVisible }) {
+                                            Icon(
+                                                painter = painterResource(
+                                                    id = if (rePasswordVisible) R.drawable.ic_visibility
+                                                    else R.drawable.ic_visibility_off
+                                                ),
+                                                contentDescription = null,
+                                                tint = ColorHint,
+                                                modifier = Modifier.size(20.dp),
+                                            )
+                                        }
+                                    },
+                                    visualTransformation = if (rePasswordVisible)
+                                        VisualTransformation.None else PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = signUpTextFieldColors(),
+                                )
+
+                                Spacer(Modifier.height(20.dp))
+                                StepIndicator(currentStep = 0, totalSteps = 2, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Spacer(Modifier.height(16.dp))
+
                                 Button(
-                                    onClick = { viewModel.login(email, password) },
+                                    onClick = { currentStep = 1 },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(60.dp),
+                                        .height(56.dp),
                                     shape = RoundedCornerShape(50.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = Color.White,
                                         contentColor = ColorButtonBg,
                                     ),
-                                    contentPadding = PaddingValues(horizontal = 12.dp),
                                     elevation = ButtonDefaults.buttonElevation(
                                         defaultElevation = 6.dp,
                                         pressedElevation = 2.dp,
                                     ),
-                                    enabled = !state.isLoading,
+                                    enabled = email.isNotBlank() && password.isNotBlank() && rePassword.isNotBlank() && password == rePassword,
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                    Text(
+                                        text = "Next",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp,
+                                        color = ColorButtonBg,
+                                    )
+                                }
+                            }
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    InsoleCard(
+                                        label = "Left\nInsole",
+                                        isPaired = leftPaired,
+                                        mirrored = false,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = { leftPaired = !leftPaired },
+                                    )
+                                    InsoleCard(
+                                        label = "Right\nInsole",
+                                        isPaired = rightPaired,
+                                        mirrored = true,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = { rightPaired = !rightPaired },
+                                    )
+                                }
+
+                                Spacer(Modifier.height(16.dp))
+                                Text(
+                                    text = "Make sure both insoles are powered on",
+                                    color = ColorHint,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Spacer(Modifier.height(20.dp))
+                                StepIndicator(currentStep = 1, totalSteps = 2)
+                                Spacer(Modifier.height(16.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    Button(
+                                        onClick = { currentStep = 0 },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(60.dp),
+                                        shape = RoundedCornerShape(50.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color.White,
+                                            contentColor = ColorButtonBg,
+                                        ),
+                                        elevation = ButtonDefaults.buttonElevation(
+                                            defaultElevation = 6.dp,
+                                            pressedElevation = 2.dp,
+                                        ),
                                     ) {
-                                        Spacer(Modifier.size(30.dp))
                                         Text(
-                                            text = if (state.isLoading) "..." else "Finish",
+                                            text = "Back",
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Bold,
                                             letterSpacing = 1.sp,
                                             color = ColorButtonBg,
                                         )
-                                        Box(
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(60.dp)
+                                            .clip(RoundedCornerShape(50.dp)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Button(
+                                            onClick = { viewModel.signUp(email, password) },
                                             modifier = Modifier
-                                                .size(40.dp)
-                                                .background(color = ColorButtonBg, shape = CircleShape),
-                                            contentAlignment = Alignment.Center,
+                                                .fillMaxWidth()
+                                                .height(60.dp),
+                                            shape = RoundedCornerShape(50.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color.White,
+                                                contentColor = ColorButtonBg,
+                                            ),
+                                            contentPadding = PaddingValues(horizontal = 12.dp),
+                                            elevation = ButtonDefaults.buttonElevation(
+                                                defaultElevation = 6.dp,
+                                                pressedElevation = 2.dp,
+                                            ),
+                                            enabled = !state.isLoading && leftPaired && rightPaired,
                                         ) {
-                                            Icon(
-                                                painter = painterResource(id = R.drawable.sign_in),
-                                                contentDescription = null,
-                                                tint = Color.White,
-                                                modifier = Modifier.size(22.dp).offset(x=2.dp),
-                                            )
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                            ) {
+                                                Spacer(Modifier.size(30.dp))
+                                                Text(
+                                                    text = if (state.isLoading) "..." else "Finish",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    letterSpacing = 1.sp,
+                                                    color = ColorButtonBg,
+                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(40.dp)
+                                                        .background(color = ColorButtonBg, shape = CircleShape),
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(id = R.drawable.sign_in),
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(22.dp).offset(x=2.dp),
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }

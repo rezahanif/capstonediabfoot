@@ -1,0 +1,118 @@
+[
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_insole_hero.webp.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/insole_hero.webp"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_ic_trends.xml.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/ic_trends.xml"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_ic_monitor.xml.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/ic_monitor.xml"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_insole_pair.webp.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/insole_pair.webp"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_ic_bell.xml.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/ic_bell.xml"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_icon_monitor.webp.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/icon_monitor.webp"
+    },
+    {
+        "merged": "com.project.insole.app-debug-55:/drawable_kuning.webp.flat",
+        "source": "com.project.insole.app-main-57:/drawable/kuning.webp"
+    },
+    {
+        "merged": "com.project.insole.app-debug-55:/drawable_abu.webp.flat",
+        "source": "com.project.insole.app-main-57:/drawable/abu.webp"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_ic_visibility.xml.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/ic_visibility.xml"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_sign_up.webp.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/sign_up.webp"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_ic_arrow_back.xml.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/ic_arrow_back.xml"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_ic_lock.xml.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/ic_lock.xml"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_ic_check.xml.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/ic_check.xml"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_foot.webp.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/foot.webp"
+    },
+    {
+        "merged": "com.project.insole.app-debug-55:/drawable_merah.webp.flat",
+        "source": "com.project.insole.app-main-57:/drawable/merah.webp"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_icon_trend.webp.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/icon_trend.webp"
+    },
+    {
+        "merged": "com.project.insole.app-debug-55:/drawable_biru.webp.flat",
+        "source": "com.project.insole.app-main-57:/drawable/biru.webp"
+    },
+    {
+        "merged": "com.project.insole.app-debug-55:/drawable_hijau.webp.flat",
+        "source": "com.project.insole.app-main-57:/drawable/hijau.webp"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_ic_google.xml.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/ic_google.xml"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_ic_visibility_off.xml.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/ic_visibility_off.xml"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_stat.webp.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/stat.webp"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_ic_close.xml.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/ic_close.xml"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_ic_email.xml.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/ic_email.xml"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_sign_in.webp.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/sign_in.webp"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_ic_bluetooth.xml.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/ic_bluetooth.xml"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_icon_home.webp.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/icon_home.webp"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_connect.webp.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/connect.webp"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_icon_notify.webp.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/icon_notify.webp"
+    },
+    {
+        "merged": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-debug-55:/drawable_ic_home.xml.flat",
+        "source": "/Users/reza/.gradle/daemon/8.13/com.project.insole.app-main-57:/drawable/ic_home.xml"
+    }
+]

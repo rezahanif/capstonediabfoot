@@ -28,9 +28,11 @@ import com.project.insole.features.sensor.presentation.components.*
 @Composable
 fun MonitoringScreen(
     viewModel: SensorViewModel,
+    bleViewModel: com.project.insole.core.ble.BleViewModel,
     onBack: () -> Unit = {}
 ) {
     val state = viewModel.sensorState.collectAsState().value
+    val bleState = bleViewModel.bleState.collectAsState().value
 
     Column(
         modifier = Modifier
@@ -49,16 +51,26 @@ fun MonitoringScreen(
             // 2 ── Timer Section ──────────────────────────────────────────
             SessionTimerSection(
                 durationSeconds = state.sessionDurationSeconds,
-                isRecording = state.isConnected
+                isRecording = bleState.leftDeviceState == com.project.insole.core.ble.model.BleDeviceState.Connected ||
+                            bleState.rightDeviceState == com.project.insole.core.ble.model.BleDeviceState.Connected
             )
 
             // 3 ── Plantar Pressure Map Card ──────────────────────────────
-            PlantarPressureCard(pressureValues = state.fsrValues)
+            PlantarPressureCard(
+                rawBleLeft = bleState.leftRawData,
+                rawBleRight = bleState.rightRawData,
+                leftConnected = bleState.isLeftConnected,
+                rightConnected = bleState.isRightConnected,
+                leftPacketSeq = bleState.leftPacketSeq,
+                rightPacketSeq = bleState.rightPacketSeq
+            )
+
+
 
             // 4 ── Temperature Asymmetry Card ─────────────────────────────
             TempAsymmetryCard(
-                leftTemp = state.temperature,
-                rightTemp = state.temperature // Assuming model handles dual temp
+                leftTemp = bleState.leftTempC,
+                rightTemp = bleState.rightTempC
             )
 
             // 5 ── Foot Temperature Row ──────────────────────────────────
@@ -71,12 +83,12 @@ fun MonitoringScreen(
             ) {
                 SingleFootTempCard(
                     label = "RIGHT FOOT (PEAK)",
-                    temp = state.temperature, // Placeholder
+                    temp = bleState.rightTempC,
                     modifier = Modifier.weight(1f)
                 )
                 SingleFootTempCard(
                     label = "LEFT FOOT (PEAK)",
-                    temp = state.temperature,
+                    temp = bleState.leftTempC,
                     modifier = Modifier.weight(1f)
                 )
             }

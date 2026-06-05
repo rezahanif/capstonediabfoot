@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.project.insole.core.ble.model.BleDeviceState
+import com.project.insole.core.ble.InsoleUUIDs
 import com.project.insole.core.presentation.components.InsoleToast
 import com.project.insole.core.presentation.components.ToastData
 import com.project.insole.core.presentation.components.ToastType
@@ -33,9 +34,17 @@ fun BleDevicePairingScreen(
     // Toast State Management
     var toastData by remember { mutableStateOf<ToastData?>(null) }
 
-    // Observe connection states and show Toasts
-    LaunchedEffect(state.deviceState) {
-        when (val deviceState = state.deviceState) {
+    // Observe connection states and show Toasts (Simplified for dual states)
+    LaunchedEffect(state.leftDeviceState, state.rightDeviceState) {
+        val lastState = if (state.leftDeviceState is BleDeviceState.Connecting || state.rightDeviceState is BleDeviceState.Connecting) {
+            BleDeviceState.Connecting
+        } else if (state.leftDeviceState is BleDeviceState.Connected || state.rightDeviceState is BleDeviceState.Connected) {
+            BleDeviceState.Connected
+        } else {
+            BleDeviceState.Disconnected
+        }
+
+        when (lastState) {
             is BleDeviceState.Connecting -> {
                 toastData = ToastData(
                     title = "Pairing",
@@ -53,14 +62,6 @@ fun BleDevicePairingScreen(
                 )
                 delay(3000)
                 toastData = toastData?.copy(isVisible = false)
-            }
-            is BleDeviceState.Error -> {
-                toastData = ToastData(
-                    title = "Error",
-                    description = deviceState.message,
-                    type = ToastType.Error,
-                    isVisible = true
-                )
             }
             else -> {}
         }
@@ -205,17 +206,28 @@ fun BleDevicePairingScreen(
                         contentPadding = PaddingValues(bottom = 24.dp)
                     ) {
                         items(state.scannedDevices) { device ->
+                            // Identify the exact side of this specific device card
+                            val side = remember(device.serviceUuid) { InsoleUUIDs.identifySide(device.serviceUuid) }
+
+                            // Check connection states independently based on the identified hardware side
+                            val isCurrentDeviceConnected = when (side) {
+                                "LEFT" -> state.leftDeviceState == BleDeviceState.Connected
+                                "RIGHT" -> state.rightDeviceState == BleDeviceState.Connected
+                                else -> false
+                            }
+
                             DeviceCard(
                                 device = device,
-                                isSelected = state.connectedDeviceName == device.name,
-                                onConnect = { viewModel.connectToDevice(device.address, device.name) }
+                                isConnected = isCurrentDeviceConnected, // Target isolated flag state
+                                onConnect = { viewModel.connectToDevice(device.address) }
                             )
                         }
                     }
                 }
 
-                // ── Bottom Action Button ────────────────────────────────────────
-                if (state.deviceState == BleDeviceState.Connected) {
+                // ── Bottom Action Button Guard Condition ──
+                // Ensure the navigation button only appears when BOTH custom elements are securely paired
+                if (state.leftDeviceState == BleDeviceState.Connected && state.rightDeviceState == BleDeviceState.Connected) {
                     Button(
                         onClick = onConnected,
                         modifier = Modifier
@@ -249,14 +261,19 @@ fun BleDevicePairingScreen(
 @Composable
 private fun DeviceCard(
     device: ScannedDevice,
-    isSelected: Boolean,
+    isConnected: Boolean,
     onConnect: () -> Unit
 ) {
+    val side = remember(device.serviceUuid) { InsoleUUIDs.identifySide(device.serviceUuid) }
+    val isRecognized = side != "UNKNOWN"
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = if (isRecognized) Color(0xFFF0F7FF) else Color.White
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isRecognized) 4.dp else 2.dp)
     ) {
         Row(
             modifier = Modifier
@@ -266,28 +283,55 @@ private fun DeviceCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = device.name,
-                    color = DashboardColors.Navy,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = device.name,
+                        color = DashboardColors.Navy,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    if (isRecognized) {
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            color = if (side == "LEFT") DashboardColors.Brand else Color(0xFFE91E63),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = side,
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+                
                 Text(
                     text = device.address,
                     color = DashboardColors.TextMuted,
                     fontSize = 12.sp
                 )
+                
+                if (device.serviceUuid != null) {
+                    Text(
+                        text = "UUID: ${device.serviceUuid.take(8)}...",
+                        color = DashboardColors.TextLightGray,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Normal
+                    )
+                }
             }
             
             Button(
                 onClick = onConnect,
-                enabled = !isSelected,
+                enabled = !isConnected,
                 shape = RoundedCornerShape(50.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isSelected) DashboardColors.Green else DashboardColors.Brand
+                    containerColor = if (isConnected) DashboardColors.Green else DashboardColors.Brand
                 )
             ) {
-                Text(if (isSelected) "Connected" else "Connect", fontSize = 12.sp)
+                Text(if (isConnected) "Paired" else "Pair", fontSize = 12.sp)
             }
         }
     }

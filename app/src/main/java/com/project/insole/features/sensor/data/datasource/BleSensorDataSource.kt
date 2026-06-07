@@ -3,6 +3,8 @@ package com.project.insole.features.sensor.data.datasource
 import android.annotation.SuppressLint
 import com.project.insole.core.ble.InsoleBleManager
 import com.project.insole.features.sensor.domain.model.InsoleSensorData
+import com.project.insole.features.sensor.domain.model.SensorPacket
+import com.project.insole.features.sensor.domain.service.StepCounterService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -13,12 +15,15 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Collects raw BLE data from InsoleBleManager and aggregates it into domain models.
+ * Singleton source of truth for parsed BLE telemetry.
+ * Subscribes to raw telemetryFlow, parses into SensorPackets,
+ * and aggregates them into domain-friendly InsoleSensorData.
  */
 @SuppressLint("MissingPermission")
 @Singleton
 class BleSensorDataSource @Inject constructor(
-    private val bleManager: InsoleBleManager
+    private val bleManager: InsoleBleManager,
+    private val stepCounterService: StepCounterService
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -31,52 +36,66 @@ class BleSensorDataSource @Inject constructor(
     private val _rawRightDataFlow = MutableStateFlow<String?>(null)
     val rawRightDataFlow: Flow<String?> = _rawRightDataFlow
 
-    private var currentLeftData: String? = null
-    private var currentRightData: String? = null
+    private var currentLeftPacket: SensorPacket? = null
+    private var currentRightPacket: SensorPacket? = null
 
     init {
-        // Subscribe to telemetryFlow - the real data pipe from InsoleBleManager
         scope.launch {
             bleManager.telemetryFlow.collect { packet ->
-                onBleCharacteristicChanged(packet.data, packet.isLeft)
+                onBleCharacteristicChanged(packet.data, packet.isLeft, packet.deviceAddress)
             }
         }
     }
 
-    private fun onBleCharacteristicChanged(rawData: ByteArray, isLeft: Boolean) {
+    private fun onBleCharacteristicChanged(rawData: ByteArray, isLeft: Boolean, address: String) {
         val dataString = String(rawData, Charsets.UTF_8)
         
+        android.util.Log.d("BLE_DATA", "${if (isLeft) "LEFT" else "RIGHT"} [$address] raw: '$dataString'")
+
+        val sensorPacket = SensorPacket.fromBleString(dataString)
+        if (sensorPacket == null) {
+            android.util.Log.e("BLE_DATA", "  Failed to parse packet from $address")
+            return
+        }
+
+        android.util.Log.d("BLE_DATA", "  Parsed: Temp=${sensorPacket.temperature}, Press=${sensorPacket.pressure}")
+
         if (isLeft) {
-            currentLeftData = dataString
+            currentLeftPacket = sensorPacket
             _rawLeftDataFlow.value = dataString
         } else {
-            currentRightData = dataString
+            currentRightPacket = sensorPacket
             _rawRightDataFlow.value = dataString
         }
 
-        val sensorData = aggregateSensorData(currentLeftData, currentRightData)
-        _sensorDataFlow.value = sensorData
+        // Update domain-level step counter
+        stepCounterService.processPacket(sensorPacket, isLeft)
+
+        // Broadcast aggregated state
+        _sensorDataFlow.value = aggregateSensorData()
     }
 
-    private fun aggregateSensorData(leftRaw: String?, rightRaw: String?): InsoleSensorData {
-        val leftParts = leftRaw?.split(",") ?: emptyList()
-        val rightParts = rightRaw?.split(",") ?: emptyList()
+    private fun aggregateSensorData(): InsoleSensorData {
+        val left = currentLeftPacket
+        val right = currentRightPacket
 
-        val leftPressure = if (leftParts.size >= 8) leftParts[6].toFloatOrNull() ?: 0f else 0f
-        val rightPressure = if (rightParts.size >= 8) rightParts[6].toFloatOrNull() ?: 0f else 0f
+        val leftPressure = left?.pressure?.toInt() ?: 0
+        val rightPressure = right?.pressure?.toInt() ?: 0
         
-        val leftTemp = if (leftParts.size >= 8) leftParts[7].toFloatOrNull() ?: 0f else 0f
-        val rightTemp = if (rightParts.size >= 8) rightParts[7].toFloatOrNull() ?: 0f else 0f
+        val leftTemp = left?.temperature ?: 0f
+        val rightTemp = right?.temperature ?: 0f
 
         return InsoleSensorData(
-            pressureValues = listOf(leftPressure.toInt(), rightPressure.toInt()),
+            pressureValues = listOf(leftPressure, rightPressure),
             temperature = (leftTemp + rightTemp) / if (leftTemp > 0 && rightTemp > 0) 2f else 1f,
             leftTemperature = leftTemp,
             rightTemperature = rightTemp,
-            leftPressure = leftPressure.toInt(),
-            rightPressure = rightPressure.toInt(),
-            stepCount = 0, // Steps are handled by domain service
-            batteryLevel = 100,
+            leftPressure = leftPressure,
+            rightPressure = rightPressure,
+            stepCount = stepCounterService.totalSteps,
+            walkState = stepCounterService.walkState,
+            combinedAccelMag = stepCounterService.combinedAccelMag,
+            batteryLevel = 100, // Placeholder
             timestamp = System.currentTimeMillis()
         )
     }

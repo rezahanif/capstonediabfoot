@@ -7,12 +7,12 @@ import com.project.insole.features.sensor.domain.model.InsoleSensorData
 import com.project.insole.features.sensor.domain.repository.SensorRepository
 import com.project.insole.features.sensor.domain.usecase.AnalyzePressureThresholdUseCase
 import com.project.insole.features.sensor.domain.usecase.MapPressureToGridUseCase
-import com.project.insole.features.sensor.domain.usecase.ProcessStepCountUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -36,7 +36,6 @@ data class SensorUiState(
 class SensorViewModel @Inject constructor(
     private val sensorRepository: SensorRepository,
     private val mapPressureToGridUseCase: MapPressureToGridUseCase,
-    private val processStepCountUseCase: ProcessStepCountUseCase,
     private val analyzePressureThresholdUseCase: AnalyzePressureThresholdUseCase
 ) : ViewModel() {
 
@@ -62,13 +61,13 @@ class SensorViewModel @Inject constructor(
         
         viewModelScope.launch {
             sensorRepository.getRawLeftDataFlow().collect { rawData ->
-                _sensorState.value = _sensorState.value.copy(rawBleLeft = rawData)
+                _sensorState.update { it.copy(rawBleLeft = rawData) }
             }
         }
 
         viewModelScope.launch {
             sensorRepository.getRawRightDataFlow().collect { rawData ->
-                _sensorState.value = _sensorState.value.copy(rawBleRight = rawData)
+                _sensorState.update { it.copy(rawBleRight = rawData) }
             }
         }
     }
@@ -79,12 +78,11 @@ class SensorViewModel @Inject constructor(
                 val isConnected = state == BleDeviceState.Connected
                 
                 if (isConnected) {
-                    _sensorState.value = _sensorState.value.copy(isConnected = true)
+                    _sensorState.update { it.copy(isConnected = true) }
                     startSessionTimer()
                 } else {
                     stopSessionTimer()
-                    // Reset UI data to default values upon disconnection
-                    _sensorState.value = _sensorState.value.copy(
+                    _sensorState.update { it.copy(
                         isConnected = false,
                         fsrValues = emptyList(),
                         temperature = 0f,
@@ -92,20 +90,20 @@ class SensorViewModel @Inject constructor(
                         batteryLevel = 0,
                         thresholdAlerts = emptyList(),
                         connectionQuality = "Disconnected"
-                    )
+                    )}
                 }
             }
         }
     }
 
     private fun startSessionTimer() {
-        if (timerJob != null) return // Already running
+        if (timerJob != null) return
         
         sessionStartTime = System.currentTimeMillis()
         timerJob = viewModelScope.launch {
             while (true) {
                 val elapsed = (System.currentTimeMillis() - sessionStartTime) / 1000
-                _sensorState.value = _sensorState.value.copy(sessionDurationSeconds = elapsed)
+                _sensorState.update { it.copy(sessionDurationSeconds = elapsed) }
                 delay(1000)
             }
         }
@@ -114,7 +112,7 @@ class SensorViewModel @Inject constructor(
     private fun stopSessionTimer() {
         timerJob?.cancel()
         timerJob = null
-        _sensorState.value = _sensorState.value.copy(sessionDurationSeconds = 0)
+        _sensorState.update { it.copy(sessionDurationSeconds = 0) }
     }
 
     fun endSession() {
@@ -124,24 +122,23 @@ class SensorViewModel @Inject constructor(
 
     fun refreshData() {
         viewModelScope.launch {
-            _sensorState.value = _sensorState.value.copy(isRefreshing = true)
-            delay(1500) // Simulate refresh
-            _sensorState.value = _sensorState.value.copy(isRefreshing = false)
+            _sensorState.update { it.copy(isRefreshing = true) }
+            delay(1500)
+            _sensorState.update { it.copy(isRefreshing = false) }
         }
     }
 
     private fun updateSensorState(sensorData: InsoleSensorData) {
-        val stepCount = processStepCountUseCase(sensorData)
         val alerts = analyzePressureThresholdUseCase(sensorData)
 
-        _sensorState.value = _sensorState.value.copy(
+        _sensorState.update { it.copy(
             isLoading = false,
             fsrValues = sensorData.pressureValues,
             temperature = sensorData.temperature,
-            stepCount = stepCount,
+            stepCount = sensorData.stepCount,
             batteryLevel = sensorData.batteryLevel,
             connectionQuality = "Good",
             thresholdAlerts = alerts.map { it.message }
-        )
+        )}
     }
 }

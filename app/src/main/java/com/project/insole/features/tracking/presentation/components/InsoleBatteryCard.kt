@@ -23,9 +23,13 @@ import com.project.insole.core.theme.DashboardColors
 fun InsoleBatteryCard(
     side: String,
     batteryPct: Int,
+    isConnected: Boolean, // ✅ Added parameter
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
+    val statusColor = if (isConnected) DashboardColors.Green else Color.Gray
+    val statusText = if (isConnected) "Connected" else "Disconnected"
+
     Card(
         modifier = modifier
             .height(242.dp)
@@ -63,20 +67,20 @@ fun InsoleBatteryCard(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(DashboardColors.Green)
+                                .background(statusColor) // ✅ Dynamic color
                         )
                         Text(
-                            text = "Connected",
-                            color = DashboardColors.Green,
+                            text = statusText, // ✅ Dynamic text
+                            color = statusColor,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
                         )
                     }
                 }
                 Icon(
-                    imageVector = Icons.Default.Info, // Placeholder for Bluetooth
+                    imageVector = Icons.Default.Info,
                     contentDescription = "Bluetooth",
-                    tint = Color(0xFF2563EB),
+                    tint = if (isConnected) Color(0xFF2563EB) else Color.Gray,
                     modifier = Modifier.size(24.dp),
                 )
             }
@@ -87,17 +91,17 @@ fun InsoleBatteryCard(
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(
-                    progress = batteryPct / 100f,
+                    progress = if (isConnected) batteryPct / 100f else 0f,
                     modifier = Modifier.fillMaxSize(),
-                    color = DashboardColors.GreenMint,
+                    color = if (isConnected) DashboardColors.GreenMint else Color.LightGray,
                     trackColor = DashboardColors.ProgressTrack,
                     strokeWidth = 8.dp,
                     strokeCap = StrokeCap.Round,
                 )
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "$batteryPct%",
-                        color = DashboardColors.Navy,
+                        text = if (isConnected) "$batteryPct%" else "--%",
+                        color = if (isConnected) DashboardColors.Navy else Color.Gray,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Medium,
                     )
@@ -124,11 +128,11 @@ fun InsoleBatteryCard(
                 Box(
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(DashboardColors.GreenMint)
+                        .background(if (isConnected) DashboardColors.GreenMint else Color.Gray)
                         .padding(horizontal = 8.dp, vertical = 2.dp),
                 ) {
                     Text(
-                        text = "Good",
+                        text = if (isConnected) "Good" else "N/A",
                         color = Color.White,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,

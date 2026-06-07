@@ -27,7 +27,7 @@ DiabFoot connects to a pair of ESP32-based smart insoles via Bluetooth Low Energ
 | Layer | Technology |
 |---|---|
 | Language | Kotlin |
-| UI | Jetpack Compose |
+| UI | Jetpack Compose with OOUX ORCA|
 | Architecture | Clean Architecture (Presentation → Domain → Data) |
 | DI | Hilt |
 | BLE | Android BLE API (GATT) |

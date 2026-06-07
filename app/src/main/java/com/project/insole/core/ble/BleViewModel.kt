@@ -3,9 +3,8 @@ package com.project.insole.core.ble
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.project.insole.core.ble.model.BleDeviceState
-import com.project.insole.features.sensor.domain.model.SensorPacket
 import com.project.insole.features.sensor.domain.model.WalkState
-import com.project.insole.features.sensor.domain.model.DualFootStepCounter
+import com.project.insole.features.sensor.domain.repository.SensorRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,59 +43,48 @@ data class BleUiState(
 
 @HiltViewModel
 class BleViewModel @Inject constructor(
-    private val bleManager: InsoleBleManager
+    private val bleManager: InsoleBleManager,
+    private val sensorRepository: SensorRepository
 ) : ViewModel() {
-
-    private val stepCounter = DualFootStepCounter()
 
     private val _bleState = MutableStateFlow(BleUiState())
     val bleState: StateFlow<BleUiState> = _bleState
 
     init {
         observeBleState()
+        observeSensorData()
         checkBluetoothEnabled()
+    }
 
-        // ✅ Subscribe to telemetryFlow — the only real data pipe
+    private fun observeSensorData() {
+        // Consolidated logic: observe parsed sensor data from repository
         viewModelScope.launch {
-            bleManager.telemetryFlow.collect { packet ->
-                val raw = String(packet.data, Charsets.UTF_8)
-                val isLeft = packet.isLeft
-
-                android.util.Log.d("BLE_DATA",
-                    "${if (isLeft) "LEFT" else "RIGHT"} [${packet.deviceAddress}] raw: '$raw'")
-
-                val sensorPacket = SensorPacket.fromBleString(raw)
-
-                if (sensorPacket == null) {
-                    android.util.Log.e("BLE_DATA", "Parse failed for: '$raw'")
-                    return@collect
+            sensorRepository.getSensorDataFlow().collect { sensorData ->
+                if (sensorData != null) {
+                    _bleState.update { state ->
+                        state.copy(
+                            leftTempC = sensorData.leftTemperature,
+                            rightTempC = sensorData.rightTemperature,
+                            leftPressure = sensorData.leftPressure.toFloat(),
+                            rightPressure = sensorData.rightPressure.toFloat(),
+                            totalSteps = sensorData.stepCount,
+                            walkState = sensorData.walkState,
+                            combinedAccelMag = sensorData.combinedAccelMag
+                        )
+                    }
                 }
+            }
+        }
 
-                android.util.Log.d("BLE_DATA",
-                    "Parsed → Temp=${sensorPacket.temperature}°C  Press=${sensorPacket.pressure}")
-
-                val newSteps = if (isLeft) stepCounter.processLeft(sensorPacket)
-                               else stepCounter.processRight(sensorPacket)
-
-                _bleState.update { state ->
-                    if (isLeft) state.copy(
-                        leftRawData   = raw,
-                        leftPacketSeq = state.leftPacketSeq + 1,
-                        leftTempC     = sensorPacket.temperature,
-                        leftPressure  = sensorPacket.pressure,
-                        totalSteps    = newSteps,
-                        walkState     = stepCounter.dominantState,
-                        combinedAccelMag = stepCounter.combinedAccelMag
-                    ) else state.copy(
-                        rightRawData   = raw,
-                        rightPacketSeq = state.rightPacketSeq + 1,
-                        rightTempC     = sensorPacket.temperature,
-                        rightPressure  = sensorPacket.pressure,
-                        totalSteps     = newSteps,
-                        walkState      = stepCounter.dominantState,
-                        combinedAccelMag = stepCounter.combinedAccelMag
-                    )
-                }
+        // Keep raw sequence for UI bar charts
+        viewModelScope.launch {
+            sensorRepository.getRawLeftDataFlow().collect { raw ->
+                _bleState.update { it.copy(leftRawData = raw, leftPacketSeq = it.leftPacketSeq + 1) }
+            }
+        }
+        viewModelScope.launch {
+            sensorRepository.getRawRightDataFlow().collect { raw ->
+                _bleState.update { it.copy(rightRawData = raw, rightPacketSeq = it.rightPacketSeq + 1) }
             }
         }
     }

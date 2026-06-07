@@ -8,7 +8,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.project.insole.features.sensor.presentation.SensorViewModel
-import com.project.insole.features.sensor.presentation.components.PlantarPressureCard
 import com.project.insole.features.sensor.presentation.components.StepsMetricCard
 import com.project.insole.features.tracking.presentation.components.*
 

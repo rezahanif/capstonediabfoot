@@ -45,7 +45,7 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
-    
+
     // Independent states for Left and Right insoles
     private val _leftDeviceState = MutableStateFlow<BleDeviceState>(BleDeviceState.Disconnected)
     val leftDeviceState: StateFlow<BleDeviceState> = _leftDeviceState
@@ -58,7 +58,7 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
 
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning
-    
+
     // ✅ Multicast flow for incoming data - avoids listener conflicts
     private val _telemetryFlow = MutableSharedFlow<BleDataPacket>(extraBufferCapacity = 64)
     val telemetryFlow = _telemetryFlow.asSharedFlow()
@@ -85,23 +85,23 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
                     rssi = it.rssi,
                     serviceUuid = serviceUuid
                 )
-                
+
                 val currentList = _scannedDevices.value.toMutableList()
                 currentList.removeAll { existing -> existing.address == device.address }
                 currentList.add(device)
-                
+
                 // Sort by:
                 // 1. Recognized Insole UUIDs first
                 // 2. Known "Smart_Insole" names second
                 // 3. RSSI (signal strength) third
                 val sortedList = currentList.sortedWith(
-                    compareByDescending<ScannedDevice> { 
+                    compareByDescending<ScannedDevice> {
                         InsoleUUIDs.identifySide(it.serviceUuid) != "UNKNOWN"
-                    }.thenByDescending { 
-                        it.name.contains("Smart_Insole", ignoreCase = true) 
+                    }.thenByDescending {
+                        it.name.contains("Smart_Insole", ignoreCase = true)
                     }.thenByDescending { it.rssi }
                 )
-                
+
                 _scannedDevices.value = sortedList
             }
         }
@@ -127,7 +127,7 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
 
     fun startScanning() {
         if (!isBluetoothEnabled()) return
-        
+
         val scanner = bluetoothAdapter?.bluetoothLeScanner ?: return
         if (_isScanning.value) return
 
@@ -143,7 +143,7 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
-        
+
         scanner.startScan(filters, settings, scanCallback)
     }
 
@@ -157,9 +157,9 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
      */
     fun connect(deviceAddress: String, isLeft: Boolean? = null) {
         if (!isBluetoothEnabled()) return
-        
+
         val device = bluetoothAdapter?.getRemoteDevice(deviceAddress) ?: return
-        
+
         // Use provided side if available, otherwise determine from UUID/Name
         val determinedIsLeft = isLeft ?: run {
             val scannedDevice = _scannedDevices.value.find { it.address == deviceAddress }
@@ -190,7 +190,7 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
             }
         } else {
             // Disconnect all
-            activeGatts.values.forEach { 
+            activeGatts.values.forEach {
                 it.disconnect()
                 it.close()
             }
@@ -210,7 +210,7 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
                 if (uuidStr.equals(InsoleUUIDs.RIGHT_SERVICE, ignoreCase = true)) return false
             }
         }
-        
+
         // 2. Fallback check: Read direct name profile strings if services aren't fully indexed yet
         return gatt.device.name?.contains("Left", ignoreCase = true) ?: true
     }
@@ -218,15 +218,20 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
     override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
         super.onConnectionStateChange(gatt, status, newState)
         if (gatt == null) return
-        
+
         val address = gatt.device.address
-        // ✅ Use the pre-locked side, fallback to dynamic check only if not found
-        val isLeft = addressToSide[address] ?: determineSideFromGatt(gatt)
+        // Re-lock the side if it was cleared by a prior disconnect; persist so
+        // handleCharacteristicChange can find it without another lookup.
+        val isLeft = addressToSide.getOrPut(address) { determineSideFromGatt(gatt) }
 
         when (newState) {
             BluetoothProfile.STATE_CONNECTED -> {
                 updateDeviceState(isLeft, BleDeviceState.Discovering)
-                gatt.discoverServices()
+                // ✅ Request higher MTU for long CSV strings before discovering services
+                if (!gatt.requestMtu(512)) {
+                    Log.w("InsoleBleManager", "MTU request could not be initiated, discovering services...")
+                    gatt.discoverServices()
+                }
             }
             BluetoothProfile.STATE_DISCONNECTED -> {
                 // Ensure proper state cleanup on target channel path
@@ -238,13 +243,25 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
         }
     }
 
+    override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
+        super.onMtuChanged(gatt, mtu, status)
+        if (status == BluetoothGatt.GATT_SUCCESS && gatt != null) {
+            Log.d("InsoleBleManager", "MTU changed to $mtu for ${gatt.device.address}")
+            // Now safe to discover services
+            gatt.discoverServices()
+        } else if (gatt != null) {
+            Log.e("InsoleBleManager", "MTU request failed, falling back to discovery anyway")
+            gatt.discoverServices()
+        }
+    }
+
     override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
         super.onServicesDiscovered(gatt, status)
         if (gatt == null) return
-        
+
         val address = gatt.device.address
-        // ✅ Reliable — uses the address-locked side
-        val isLeft = addressToSide[address] ?: determineSideFromGatt(gatt)
+        // Ensure isLeft is always persisted so handleCharacteristicChange can find it.
+        val isLeft = addressToSide.getOrPut(address) { determineSideFromGatt(gatt) }
 
         if (status == BluetoothGatt.GATT_SUCCESS) {
             gatt.services.forEach { service ->
@@ -268,7 +285,7 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
     private fun enableNotifications(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
         Log.d("InsoleBleManager", "Enabling notifications for ${characteristic.uuid}")
         gatt.setCharacteristicNotification(characteristic, true)
-        
+
         val descriptor = characteristic.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
         if (descriptor != null) {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -308,8 +325,12 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
         value: ByteArray
     ) {
         val address = gatt.device.address
-        val isLeft = addressToSide[address] ?: return
-        
+        // CRITICAL FIX: was `?: return` — silently dropped ALL data after any disconnect/reconnect
+        // because addressToSide.remove() is called on disconnect but was never re-persisted on
+        // reconnect. Now we fall back to service-UUID detection AND persist the result so
+        // subsequent calls don't repeat the lookup.
+        val isLeft = addressToSide.getOrPut(address) { determineSideFromGatt(gatt) }
+
         // Broadcast via Flow instead of a single listener variable
         _telemetryFlow.tryEmit(BleDataPacket(value, isLeft, address))
     }

@@ -1,8 +1,11 @@
 package com.project.insole.core.di
 
 import android.content.Context
+import androidx.room.Room
 import com.project.insole.core.ble.InsoleBleManager
 import com.project.insole.core.ble.BleConnectionManager
+import com.project.insole.core.database.InsoleDatabase
+import com.project.insole.core.database.dao.StepDao
 import com.project.insole.core.notifications.InsoleNotificationManager
 import dagger.Module
 import dagger.Provides
@@ -38,5 +41,21 @@ object AppModule {
     @Singleton
     fun provideNotificationManager(@ApplicationContext context: Context): InsoleNotificationManager {
         return InsoleNotificationManager(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideDatabase(@ApplicationContext context: Context): InsoleDatabase {
+        return Room.databaseBuilder(
+            context,
+            InsoleDatabase::class.java,
+            "insole_db"
+        ).build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideStepDao(database: InsoleDatabase): StepDao {
+        return database.stepDao()
     }
 }

@@ -47,4 +47,9 @@ class DualFootStepCounter {
         leftFSM.reset()
         rightFSM.reset()
     }
+
+    fun setInitialSteps(steps: Int) {
+        reset()
+        leftFSM.stepCount = steps
+    }
 }

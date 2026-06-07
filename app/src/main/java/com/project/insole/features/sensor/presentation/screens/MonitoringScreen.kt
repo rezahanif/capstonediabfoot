@@ -97,6 +97,7 @@ fun MonitoringScreen(
             Button(
                 onClick = { 
                     viewModel.endSession()
+                    bleViewModel.disconnect() // Explicitly disconnect both devices
                     onBack()
                 },
                 modifier = Modifier

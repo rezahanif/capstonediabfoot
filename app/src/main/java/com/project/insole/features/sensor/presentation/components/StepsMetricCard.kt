@@ -75,8 +75,7 @@ fun StepsMetricCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment     = Alignment.CenterVertically,
                 ) {
-                    ConnectionDot(connected = leftConnected,  label = "L")
-                    ConnectionDot(connected = rightConnected, label = "R")
+
                 }
                 WalkStateBadge(state = walkState)
             }

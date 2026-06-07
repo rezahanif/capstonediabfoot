@@ -1,7 +1,7 @@
 package com.project.insole.core.di
 
-import com.project.insole.features.sensor.domain.repository.SensorRepository as SensorRepo
-import com.project.insole.features.sensor.data.repository.SensorRepositoryImpl as SensorRepoImpl
+import com.project.insole.features.sensor.domain.repository.SensorRepository
+import com.project.insole.features.sensor.data.repository.SensorRepositoryImpl
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -15,6 +15,6 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindSensorRepository(
-        sensorRepositoryImpl: SensorRepoImpl
-    ): SensorRepo
+        sensorRepositoryImpl: SensorRepositoryImpl
+    ): SensorRepository
 }

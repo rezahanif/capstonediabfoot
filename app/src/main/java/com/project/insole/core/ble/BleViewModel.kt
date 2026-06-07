@@ -107,20 +107,30 @@ class BleViewModel @Inject constructor(
         }
         viewModelScope.launch {
             bleManager.leftDeviceState.collect { state ->
-                _bleState.value = _bleState.value.copy(
-                    leftDeviceState = state,
-                    errorMessage = (state as? BleDeviceState.Error)?.message
-                        ?: _bleState.value.errorMessage
-                )
+                val isConnected = state == BleDeviceState.Connected
+                _bleState.update { currentState ->
+                    currentState.copy(
+                        leftDeviceState = state,
+                        leftTempC = if (isConnected) currentState.leftTempC else 0f,
+                        leftPressure = if (isConnected) currentState.leftPressure else 0f,
+                        errorMessage = (state as? BleDeviceState.Error)?.message
+                            ?: currentState.errorMessage
+                    )
+                }
             }
         }
         viewModelScope.launch {
             bleManager.rightDeviceState.collect { state ->
-                _bleState.value = _bleState.value.copy(
-                    rightDeviceState = state,
-                    errorMessage = (state as? BleDeviceState.Error)?.message
-                        ?: _bleState.value.errorMessage
-                )
+                val isConnected = state == BleDeviceState.Connected
+                _bleState.update { currentState ->
+                    currentState.copy(
+                        rightDeviceState = state,
+                        rightTempC = if (isConnected) currentState.rightTempC else 0f,
+                        rightPressure = if (isConnected) currentState.rightPressure else 0f,
+                        errorMessage = (state as? BleDeviceState.Error)?.message
+                            ?: currentState.errorMessage
+                    )
+                }
             }
         }
     }

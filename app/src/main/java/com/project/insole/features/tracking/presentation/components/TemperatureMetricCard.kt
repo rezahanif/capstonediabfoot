@@ -82,7 +82,7 @@ fun TemperatureMetricCard(
                     Text(
                         text = "%.1f°C".format(leftTempC),
                         color = DashboardColors.TempGreen,
-                        fontSize = 14.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                     )
                 }
@@ -114,7 +114,7 @@ fun TemperatureMetricCard(
                     Text(
                         text = "%.1f°C".format(rightTempC),
                         color = DashboardColors.TempBlue,
-                        fontSize = 14.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                     )
                 }
@@ -126,7 +126,7 @@ fun TemperatureMetricCard(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(DashboardColors.InfoBadgeBg)
-                    .padding(18.dp),
+                    .padding(14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
@@ -139,7 +139,7 @@ fun TemperatureMetricCard(
                 Text(
                     text = "${tempDiff}°C",
                     color = DashboardColors.StepBlue,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                 )
             }

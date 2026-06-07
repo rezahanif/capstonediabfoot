@@ -21,7 +21,7 @@ data class SensorPacket(
          */
         fun fromBleString(raw: String): SensorPacket? {
             return try {
-                val p = raw.trim().split(",")
+                val p = raw.trim().split(",").map { it.trim() }
                 if (p.size < 8) return null
                 SensorPacket(
                     accelX      = p[0].toFloatOrNull() ?: 0f,

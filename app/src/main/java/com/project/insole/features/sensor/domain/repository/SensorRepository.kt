@@ -4,6 +4,9 @@ import com.project.insole.features.sensor.domain.model.InsoleSensorData
 import com.project.insole.core.ble.model.BleDeviceState
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * Repository is the single source of truth for sensor data.
+ */
 interface SensorRepository {
     fun getSensorDataFlow(): Flow<InsoleSensorData?>
     fun getRawLeftDataFlow(): Flow<String?>

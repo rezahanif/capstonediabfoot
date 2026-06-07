@@ -25,7 +25,7 @@ class WalkingFSM {
     private var standingTimerMs = 0L
 
     // ── Step counter ──────────────────────────────────────────────────────────
-    var stepCount = 0;  private set
+    var stepCount = 0;  internal set
 
     private var stepTriggered = false
 
@@ -35,9 +35,9 @@ class WalkingFSM {
     fun process(packet: SensorPacket): Int {
 
         // ── Convert m/s² → g (thresholds were tuned in g-units) ──────────────
-        val ax = packet.accelX / 9.81f
-        val ay = packet.accelY / 9.81f
-        val az = packet.accelZ / 9.81f
+        val ax = packet.accelX * 9.81f
+        val ay = packet.accelY * 9.81f
+        val az = packet.accelZ * 9.81f
         val gx = packet.gyroX
         val gy = packet.gyroY
         val gz = packet.gyroZ
@@ -46,6 +46,7 @@ class WalkingFSM {
         if (!filterInit) {
             axF = ax; ayF = ay; azF = az
             gxF = gx; gyF = gy; gzF = gz
+            previousTotalAccel = sqrt(ax * ax + ay * ay + az * az) // Initialize to real gravity
             filterInit = true
         } else {
             axF = ema(ax, axF); ayF = ema(ay, ayF); azF = ema(az, azF)
@@ -61,6 +62,9 @@ class WalkingFSM {
         accelMag = 0.7f * gravityRemoved + 0.3f * derivative
         gyroMag  = sqrt(gxF * gxF + gyF * gyF + gzF * gzF)
 
+        // LOG FOR DEBUGGING
+        // android.util.Log.d("FSM", "State: $state, AccelMag: $accelMag, stepTriggered: $stepTriggered")
+
         // ── FSM ───────────────────────────────────────────────────────────────
         val now = System.currentTimeMillis()
         when (state) {
@@ -71,15 +75,15 @@ class WalkingFSM {
                 }
             }
             WalkState.TRANSITION -> when {
-                accelMag > SensorConstants.MOTION_CONFIRM_THRESHOLD && (now - walkingTimerMs > 200L) ->
+                accelMag > SensorConstants.MOTION_CONFIRM_THRESHOLD && (now - walkingTimerMs > 100L) ->
                     state = WalkState.WALKING
-                accelMag < 0.03f ->
+                accelMag < 0.02f ->
                     state = WalkState.STANDING
             }
             WalkState.WALKING -> {
                 if (accelMag < SensorConstants.MOTION_STOP_THRESHOLD) {
                     if (standingTimerMs == 0L) standingTimerMs = now
-                    if (now - standingTimerMs > 1200L) {
+                    if (now - standingTimerMs > 1500L) {
                         state           = WalkState.STANDING
                         standingTimerMs = 0L
                     }
@@ -90,12 +94,16 @@ class WalkingFSM {
         }
 
         // ── Step detection ────────────────────────────────────────────────────
-        if (state == WalkState.WALKING) {
+        // Allow step counting in TRANSITION too, to be more responsive
+        if (state == WalkState.WALKING || state == WalkState.TRANSITION) {
             if (accelMag > SensorConstants.STEP_THRESHOLD && !stepTriggered) {
                 stepTriggered = true
                 stepCount++
             }
-            if (accelMag < 0.03f) stepTriggered = false
+            // Hysteresis: Must drop below a lower value to re-arm the trigger
+            if (accelMag < (SensorConstants.STEP_THRESHOLD * 0.5f)) {
+                stepTriggered = false
+            }
         } else {
             stepTriggered = false
         }

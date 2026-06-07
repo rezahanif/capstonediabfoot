@@ -68,7 +68,7 @@ fun TempAsymmetryCard(
                     Text(
                         text = "Δ %.1f°C".format(diff),
                         color = Color.White,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }

@@ -40,6 +40,7 @@ class BleSensorDataSource @Inject constructor(
     private var currentRightPacket: SensorPacket? = null
 
     init {
+        // ✅ Subscribe to telemetryFlow — the only real data pipe
         scope.launch {
             bleManager.telemetryFlow.collect { packet ->
                 onBleCharacteristicChanged(packet.data, packet.isLeft, packet.deviceAddress)
@@ -50,15 +51,15 @@ class BleSensorDataSource @Inject constructor(
     private fun onBleCharacteristicChanged(rawData: ByteArray, isLeft: Boolean, address: String) {
         val dataString = String(rawData, Charsets.UTF_8)
         
-        android.util.Log.d("BLE_DATA", "${if (isLeft) "LEFT" else "RIGHT"} [$address] raw: '$dataString'")
+        android.util.Log.d("BLE_DATA_DS", "${if (isLeft) "LEFT" else "RIGHT"} [$address] raw: '$dataString'")
 
         val sensorPacket = SensorPacket.fromBleString(dataString)
         if (sensorPacket == null) {
-            android.util.Log.e("BLE_DATA", "  Failed to parse packet from $address")
+            android.util.Log.e("BLE_DATA_DS", "  Failed to parse packet from $address")
             return
         }
 
-        android.util.Log.d("BLE_DATA", "  Parsed: Temp=${sensorPacket.temperature}, Press=${sensorPacket.pressure}")
+        android.util.Log.d("BLE_DATA_DS", "  Parsed → Temp=${sensorPacket.temperature}, Press=${sensorPacket.pressure}")
 
         if (isLeft) {
             currentLeftPacket = sensorPacket

@@ -115,6 +115,17 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
     private val _isBluetoothEnabled = MutableStateFlow(false)
     val isBluetoothEnabledFlow: StateFlow<Boolean> = _isBluetoothEnabled
 
+    /**
+     * Internal helper to initiate bonding.
+     * Currently not called in the connection flow to maintain "Just Works" compatibility.
+     */
+    private fun bondDevice(device: BluetoothDevice) {
+        if (device.bondState == BluetoothDevice.BOND_NONE) {
+            Log.i("InsoleBleManager", "Initiating bond with ${device.address}")
+            device.createBond()
+        }
+    }
+
     init {
         _isBluetoothEnabled.value = isBluetoothEnabled()
     }

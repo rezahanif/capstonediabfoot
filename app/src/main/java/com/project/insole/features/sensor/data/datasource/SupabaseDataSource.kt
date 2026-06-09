@@ -49,4 +49,26 @@ class SupabaseDataSource @Inject constructor(
             Result.failure(supabaseClient.handleNetworkError(e))
         }
     }
+
+    /**
+     * Placeholder for uploading an encrypted CSV file.
+     * Currently dead code.
+     */
+    suspend fun uploadEncryptedCsv(dataList: List<InsoleSensorData>): Result<Unit> {
+        return try {
+            // 1. Generate CSV
+            // val csvContent = com.project.insole.features.sensor.domain.service.DataExportManager.createCsvString(dataList)
+            
+            // 2. Encrypt with AES-256 (E2EE)
+            // val secretKey = com.project.insole.core.security.EncryptionManager.generateSecretKey()
+            // val encryptedContent = com.project.insole.core.security.EncryptionManager.encrypt(csvContent, secretKey)
+            
+            // 3. Upload to Cloud
+            // supabaseClient.uploadFile("backups/sensor_data.csv.enc", encryptedContent)
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

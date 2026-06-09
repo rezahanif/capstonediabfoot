@@ -183,19 +183,19 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
     fun disconnect(deviceAddress: String? = null) {
         if (deviceAddress != null) {
             activeGatts[deviceAddress]?.let { gatt ->
+                val isLeft = addressToSide[deviceAddress] ?: true
+                updateDeviceState(isLeft, BleDeviceState.Disconnected)
                 gatt.disconnect()
-                gatt.close()
-                activeGatts.remove(deviceAddress)
-                addressToSide.remove(deviceAddress)
+                // Do not close immediately; let onConnectionStateChange handle it
+                // Or if we must close, do it after a slight delay or just disconnect.
             }
         } else {
             // Disconnect all
-            activeGatts.values.forEach {
-                it.disconnect()
-                it.close()
+            activeGatts.forEach { (address, gatt) ->
+                val isLeft = addressToSide[address] ?: true
+                updateDeviceState(isLeft, BleDeviceState.Disconnected)
+                gatt.disconnect()
             }
-            activeGatts.clear()
-            addressToSide.clear()
         }
     }
 

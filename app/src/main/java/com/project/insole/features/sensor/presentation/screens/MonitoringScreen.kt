@@ -62,7 +62,9 @@ fun MonitoringScreen(
                 leftConnected = bleState.isLeftConnected,
                 rightConnected = bleState.isRightConnected,
                 leftPacketSeq = bleState.leftPacketSeq,
-                rightPacketSeq = bleState.rightPacketSeq
+                rightPacketSeq = bleState.rightPacketSeq,
+                leftPeakPressure = bleState.leftPeakPressure,
+                rightPeakPressure = bleState.rightPeakPressure
             )
 
 
@@ -83,12 +85,12 @@ fun MonitoringScreen(
             ) {
                 SingleFootTempCard(
                     label = "RIGHT FOOT (PEAK)",
-                    temp = bleState.rightTempC,
+                    temp = bleState.rightPeakTempC,
                     modifier = Modifier.weight(1f)
                 )
                 SingleFootTempCard(
                     label = "LEFT FOOT (PEAK)",
-                    temp = bleState.leftTempC,
+                    temp = bleState.leftPeakTempC,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -97,6 +99,7 @@ fun MonitoringScreen(
             Button(
                 onClick = { 
                     viewModel.endSession()
+                    bleViewModel.resetSessionStats() // Added to clear peaks
                     bleViewModel.disconnect() // Explicitly disconnect both devices
                     onBack()
                 },

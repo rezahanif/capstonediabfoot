@@ -23,12 +23,18 @@ class SensorRepositoryImpl @Inject constructor(
     
     override fun getRawRightDataFlow(): Flow<String?> = bleSensorDataSource.rawRightDataFlow
 
+    override fun getHourlyStepsFlow(): Flow<List<Int>> = bleSensorDataSource.hourlyStepsFlow
+
     override fun getConnectionState(): Flow<com.project.insole.core.ble.model.BleDeviceState> {
         return bleManager.leftDeviceState 
     }
 
     override fun disconnect() {
         bleManager.disconnect()
+    }
+
+    override fun resetSessionStats() {
+        bleSensorDataSource.resetSessionStats()
     }
 
     override suspend fun uploadSensorData(sensorData: InsoleSensorData): Result<Unit> {

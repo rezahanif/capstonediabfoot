@@ -24,9 +24,14 @@ data class BleUiState(
     val rightPacketSeq: Long = 0L,
     val leftTempC: Float = 0f,
     val rightTempC: Float = 0f,
+    val leftPeakTempC: Float = 0f,
+    val rightPeakTempC: Float = 0f,
     val leftPressure: Float = 0f,
     val rightPressure: Float = 0f,
+    val leftPeakPressure: Float = 0f,
+    val rightPeakPressure: Float = 0f,
     val totalSteps: Int = 0,
+    val hourlySteps: List<Int> = List(24) { 0 },
     val walkState: WalkState = WalkState.STANDING,
     val combinedAccelMag: Float = 0f,
     val errorMessage: String? = null,
@@ -65,14 +70,24 @@ class BleViewModel @Inject constructor(
                         state.copy(
                             leftTempC = sensorData.leftTemperature,
                             rightTempC = sensorData.rightTemperature,
+                            leftPeakTempC = sensorData.leftPeakTemp,
+                            rightPeakTempC = sensorData.rightPeakTemp,
                             leftPressure = sensorData.leftPressure.toFloat(),
                             rightPressure = sensorData.rightPressure.toFloat(),
+                            leftPeakPressure = sensorData.leftPeakPressure.toFloat(),
+                            rightPeakPressure = sensorData.rightPeakPressure.toFloat(),
                             totalSteps = sensorData.stepCount,
                             walkState = sensorData.walkState,
                             combinedAccelMag = sensorData.combinedAccelMag
                         )
                     }
                 }
+            }
+        }
+
+        viewModelScope.launch {
+            sensorRepository.getHourlyStepsFlow().collect { hourly ->
+                _bleState.update { it.copy(hourlySteps = hourly) }
             }
         }
 
@@ -113,6 +128,8 @@ class BleViewModel @Inject constructor(
                         leftDeviceState = state,
                         leftTempC = if (isConnected) currentState.leftTempC else 0f,
                         leftPressure = if (isConnected) currentState.leftPressure else 0f,
+                        // If we are disconnecting, also reset raw data to stop the charts
+                        leftRawData = if (isConnected) currentState.leftRawData else null,
                         errorMessage = (state as? BleDeviceState.Error)?.message
                             ?: currentState.errorMessage
                     )
@@ -127,6 +144,8 @@ class BleViewModel @Inject constructor(
                         rightDeviceState = state,
                         rightTempC = if (isConnected) currentState.rightTempC else 0f,
                         rightPressure = if (isConnected) currentState.rightPressure else 0f,
+                        // If we are disconnecting, also reset raw data to stop the charts
+                        rightRawData = if (isConnected) currentState.rightRawData else null,
                         errorMessage = (state as? BleDeviceState.Error)?.message
                             ?: currentState.errorMessage
                     )
@@ -159,5 +178,19 @@ class BleViewModel @Inject constructor(
 
     fun disconnect(deviceAddress: String? = null) {
         bleManager.disconnect(deviceAddress)
+    }
+
+    fun resetSessionStats() {
+        sensorRepository.resetSessionStats()
+        _bleState.update { it.copy(
+            leftPeakTempC = 0f,
+            rightPeakTempC = 0f,
+            leftPeakPressure = 0f,
+            rightPeakPressure = 0f,
+            leftTempC = 0f,
+            rightTempC = 0f,
+            leftPressure = 0f,
+            rightPressure = 0f
+        )}
     }
 }

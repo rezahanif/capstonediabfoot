@@ -9,6 +9,9 @@ class DualFootStepCounter {
     val totalSteps: Int
         get() = leftFSM.stepCount + rightFSM.stepCount
 
+    val leftSteps: Int get() = leftFSM.stepCount
+    val rightSteps: Int get() = rightFSM.stepCount
+
     /** Feed a pre-parsed packet from the LEFT insole. Returns updated total. */
     fun processLeft(packet: SensorPacket): Int {
         leftFSM.process(packet)

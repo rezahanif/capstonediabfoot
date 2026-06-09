@@ -1,6 +1,8 @@
 package com.project.insole.features.sensor.domain.service
 
+import com.project.insole.core.database.dao.HourlyStepDao
 import com.project.insole.core.database.dao.StepDao
+import com.project.insole.core.database.entity.HourlyStepEntity
 import com.project.insole.core.database.entity.StepEntity
 import com.project.insole.features.sensor.domain.model.DualFootStepCounter
 import com.project.insole.features.sensor.domain.model.SensorPacket
@@ -8,30 +10,31 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
+import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Domain-level service that maintains the state of the step counter.
- * Includes auto-reset logic for new days and local database persistence.
- */
 @Singleton
 class StepCounterService @Inject constructor(
-    private val stepDao: StepDao
+    private val stepDao: StepDao,
+    private val hourlyStepDao: HourlyStepDao
 ) {
     private val counter = DualFootStepCounter()
     private var lastResetDayOfYear: Int = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
+    private val _hourlyStepsFlow = MutableStateFlow<List<Int>>(List(24) { 0 })
+    val hourlyStepsFlow: StateFlow<List<Int>> = _hourlyStepsFlow
+
     init {
         loadStepsFromDb()
         cleanupOldHistory()
+        observeHourlyDb()
     }
 
     private fun loadStepsFromDb() {
@@ -39,8 +42,20 @@ class StepCounterService @Inject constructor(
             val todayStr = dateFormat.format(Date())
             val entity = stepDao.getStepsForDate(todayStr)
             if (entity != null) {
-                android.util.Log.d("StepCounterService", "Loaded ${entity.count} steps from DB for $todayStr")
                 counter.setInitialSteps(entity.count)
+            }
+        }
+    }
+
+    private fun observeHourlyDb() {
+        serviceScope.launch {
+            val todayStr = dateFormat.format(Date())
+            hourlyStepDao.getHourlyStepsForDate(todayStr).collect { entities ->
+                val list = MutableList(24) { 0 }
+                entities.forEach { entity ->
+                    if (entity.hour in 0..23) list[entity.hour] = entity.count
+                }
+                _hourlyStepsFlow.value = list
             }
         }
     }
@@ -48,50 +63,66 @@ class StepCounterService @Inject constructor(
     private fun cleanupOldHistory() {
         serviceScope.launch {
             stepDao.deleteOldSteps(62)
-            android.util.Log.d("StepCounterService", "Cleaned up database: Keeping only newest 62 days.")
+            hourlyStepDao.deleteOldHourlySteps(8)
+            android.util.Log.d("StepCounterService", "Cleaned up database: 62 days daily, 8 days hourly.")
         }
     }
 
     fun processPacket(packet: SensorPacket, isLeft: Boolean): Int {
         checkDailyReset()
+        val prevTotal = counter.totalSteps
         val total = if (isLeft) {
             counter.processLeft(packet)
         } else {
             counter.processRight(packet)
         }
-        saveStepsToDb(total)
+        
+        if (total > prevTotal) {
+            val diff = total - prevTotal
+            updateHourlySteps(diff)
+            saveStepsToDb(total)
+        }
         return total
+    }
+
+    private fun updateHourlySteps(diff: Int) {
+        serviceScope.launch {
+            val todayStr = dateFormat.format(Date())
+            val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            val existing = hourlyStepDao.getStepsForHour(todayStr, currentHour)
+            val newCount = (existing?.count ?: 0) + diff
+            hourlyStepDao.insertOrUpdate(HourlyStepEntity(todayStr, currentHour, newCount))
+        }
     }
 
     private var saveJob: Job? = null
     private fun saveStepsToDb(total: Int) {
-        // Debounce saves to avoid constant DB writes
         saveJob?.cancel()
         saveJob = serviceScope.launch {
-            delay(2000) // Wait 2 seconds of inactivity before saving
+            delay(2000)
             val todayStr = dateFormat.format(Date())
             stepDao.insertOrUpdateSteps(StepEntity(todayStr, total))
-            android.util.Log.d("StepCounterService", "Saved $total steps to DB")
         }
     }
 
     private fun checkDailyReset() {
         val currentDay = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
         if (currentDay != lastResetDayOfYear) {
-            android.util.Log.d("StepCounterService", "New day detected, resetting steps.")
             reset()
             cleanupOldHistory()
             lastResetDayOfYear = currentDay
+            observeHourlyDb() // Refresh observer for new day
         }
     }
 
     val totalSteps: Int get() = counter.totalSteps
+    val leftSteps: Int get() = counter.leftSteps
+    val rightSteps: Int get() = counter.rightSteps
     val walkState get() = counter.dominantState
     val combinedAccelMag get() = counter.combinedAccelMag
 
     fun reset() {
         counter.reset()
-        // Also clear in DB for today
         serviceScope.launch {
             val todayStr = dateFormat.format(Date())
             stepDao.insertOrUpdateSteps(StepEntity(todayStr, 0))

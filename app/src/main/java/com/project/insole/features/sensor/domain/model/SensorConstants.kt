@@ -11,8 +11,8 @@ object SensorConstants {
     const val TEMPERATURE_DIFF_WARNING = 2.2f // 2.2°C difference is clinically significant
     
     // Step counting thresholds (tuned in G units)
-    const val STEP_THRESHOLD = 0.08f
-    const val MOTION_START_THRESHOLD = 0.05f
-    const val MOTION_CONFIRM_THRESHOLD = 0.07f
-    const val MOTION_STOP_THRESHOLD = 0.02f
+    const val STEP_THRESHOLD = 0.15f        // Higher to avoid noise
+    const val MOTION_START_THRESHOLD = 0.12f // Higher to avoid noise
+    const val MOTION_CONFIRM_THRESHOLD = 0.15f
+    const val MOTION_STOP_THRESHOLD = 0.05f  // Higher to allow reset
 }

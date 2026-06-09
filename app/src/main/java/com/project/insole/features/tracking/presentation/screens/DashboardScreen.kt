@@ -87,6 +87,7 @@ fun DashboardScreen(
             StepsMetricCard(
                 modifier = Modifier.weight(1f),
                 stepCount = bleState.totalSteps,
+                hourlySteps = bleState.hourlySteps,
                 walkState = bleState.walkState,
                 leftConnected = bleState.isLeftConnected,
                 rightConnected = bleState.isRightConnected,

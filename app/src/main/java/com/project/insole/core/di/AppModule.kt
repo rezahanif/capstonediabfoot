@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.project.insole.core.ble.InsoleBleManager
 import com.project.insole.core.ble.BleConnectionManager
 import com.project.insole.core.database.InsoleDatabase
+import com.project.insole.core.database.dao.HourlyStepDao
 import com.project.insole.core.database.dao.StepDao
 import com.project.insole.core.notifications.InsoleNotificationManager
 import dagger.Module
@@ -50,12 +51,20 @@ object AppModule {
             context,
             InsoleDatabase::class.java,
             "insole_db"
-        ).build()
+        )
+        .fallbackToDestructiveMigration() // For development simplicity during schema changes
+        .build()
     }
 
     @Provides
     @Singleton
     fun provideStepDao(database: InsoleDatabase): StepDao {
         return database.stepDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideHourlyStepDao(database: InsoleDatabase): HourlyStepDao {
+        return database.hourlyStepDao()
     }
 }

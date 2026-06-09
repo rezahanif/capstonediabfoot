@@ -26,22 +26,27 @@ import kotlin.math.min
 // ════════════════════════════════════════════════════════════════════════════
 // SENSOR ZONE DEFINITIONS
 //
-// Each insole has 5 FSR sensor positions (from Image 2, bottom-up):
+// Each insole has 5 FSR sensor positions mapped to anatomical landmarks:
 //
-//   Zone 0 — Heel          (1 sensor, centre-rear)
-//   Zone 1 — Midfoot-lat   (1 sensor, outer mid-arch)
-//   Zone 2 — Ball-medial   (1 sensor, inner ball)
-//   Zone 3 — Ball-lateral  (1 sensor, outer ball / 5th met-head)
-//   Zone 4 — Toes          (1 sensor, 1st–2nd toe area)
+//   Zone 0 — Heel           (1 sensor, centre-rear calcaneus)
+//   Zone 1 — Metatarsal 1   (1 sensor, 1st met-head, medial ball)
+//   Zone 2 — Metatarsal 2   (1 sensor, 2nd met-head, central ball)
+//   Zone 3 — Metatarsal 5   (1 sensor, 5th met-head, lateral ball)
+//   Zone 4 — Hallux         (1 sensor, 1st toe / big-toe pad)
 //
 // Positions are expressed as fractions of the foot bounding box
 // (0,0) = top-left of the foot silhouette, (1,1) = bottom-right.
 //
 // ─── SINGLE-SENSOR MODE (current hardware) ───────────────────────────────
 // You have 1 sensor per insole now.  We distribute that single value across
-// all 5 zones using the anatomical weight-bearing ratios observed in normal
-// gait (heel ~30 %, ball-medial ~25 %, ball-lateral ~20 %, toes ~15 %,
-// midfoot ~10 %).  When you add the other 4 sensors, swap
+// all 5 zones using high-pressure anatomical weight-bearing ratios from
+// normal gait literature:
+//   Heel ~35 %  (dominant heel-strike load)
+//   Met-1 ~25 % (primary push-off / medial ball)
+//   Met-2 ~20 % (secondary central ball load)
+//   Met-5 ~12 % (lateral ball, lower but significant)
+//   Hallux ~8 % (toe-off contribution)
+// Weights sum to 1.0.  When you add the other 4 sensors, swap
 // distributeFromSingle() for a direct mapping.
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -61,18 +66,33 @@ private data class SensorZone(
  *
  * Y=0 is the TOE end, Y=1 is the HEEL end  (matching the foot silhouette
  * path which is drawn top=toes, bottom=heel).
+ *
+ * Zone layout (left foot, looking at plantar surface):
+ *   0 — Heel        : centre-rear calcaneus
+ *   1 — Metatarsal 1: medial ball (1st met-head), inner forefoot
+ *   2 — Metatarsal 2: central ball (2nd met-head), mid forefoot
+ *   3 — Metatarsal 5: lateral ball (5th met-head), outer forefoot
+ *   4 — Hallux      : big-toe pad, slightly medial
  */
 private val LEFT_ZONES = listOf(
-    SensorZone(xFrac = 0.50f, yFrac = 0.90f, radiusFrac = 0.30f, defaultWeight = 0.30f), // 0 Heel
-    SensorZone(xFrac = 0.38f, yFrac = 0.63f, radiusFrac = 0.18f, defaultWeight = 0.10f), // 1 Midfoot-lat
-    SensorZone(xFrac = 0.42f, yFrac = 0.42f, radiusFrac = 0.24f, defaultWeight = 0.25f), // 2 Ball-medial
-    SensorZone(xFrac = 0.65f, yFrac = 0.38f, radiusFrac = 0.22f, defaultWeight = 0.20f), // 3 Ball-lateral
-    SensorZone(xFrac = 0.45f, yFrac = 0.12f, radiusFrac = 0.26f, defaultWeight = 0.15f), // 4 Toes
+    SensorZone(xFrac = 0.50f, yFrac = 0.88f, radiusFrac = 0.32f, defaultWeight = 0.35f), // 0 Heel
+    SensorZone(xFrac = 0.28f, yFrac = 0.40f, radiusFrac = 0.22f, defaultWeight = 0.25f), // 1 Metatarsal 1
+    SensorZone(xFrac = 0.45f, yFrac = 0.38f, radiusFrac = 0.20f, defaultWeight = 0.20f), // 2 Metatarsal 2
+    SensorZone(xFrac = 0.70f, yFrac = 0.36f, radiusFrac = 0.18f, defaultWeight = 0.12f), // 3 Metatarsal 5
+    SensorZone(xFrac = 0.28f, yFrac = 0.10f, radiusFrac = 0.20f, defaultWeight = 0.08f), // 4 Hallux
 )
 
 /**
  * Convert a single FSR reading (0..255) into per-zone intensity values
- * using the anatomical weight ratios.  Each zone gets  value × weight.
+ * using high-pressure anatomical weight-bearing ratios.
+ *
+ * Weights (must sum to 1.0):
+ *   Heel 35 % · Met-1 25 % · Met-2 20 % · Met-5 12 % · Hallux 8 %
+ *
+ * Each zone intensity = normalised_value × (zone_weight / max_weight),
+ * so the dominant zone (Heel) always reaches full intensity at peak load,
+ * and lighter zones scale proportionally — preserving the high-pressure
+ * distribution hierarchy across the single-sensor prototype.
  *
  * When you upgrade to 5 sensors, replace this with:
  *   fun directMapping(values: List<Float>) = values   (one-to-one)
@@ -221,76 +241,76 @@ private fun FootHeatmap(
                 .fillMaxSize()
                 .alpha(if (connected) 1f else 0.25f),
         ) {
-        val w = size.width
-        val h = size.height
+            val w = size.width
+            val h = size.height
 
-        val footPath = buildFootPath(w, h, mirrored)
+            val footPath = buildFootPath(w, h, mirrored)
 
-        // ── 1. Dark blue base fill ──────────────────────────────────────────
-        clipPath(footPath) {
-            drawPath(footPath, color = Color(0xFF0A2050))
+            // ── 1. Dark blue base fill ──────────────────────────────────────────
+            clipPath(footPath) {
+                drawPath(footPath, color = Color(0xFF0A2050))
 
-            // ── 2. Per-zone radial gradient blobs ──────────────────────────
-            LEFT_ZONES.forEachIndexed { i, zone ->
-                val intensity = zoneIntensities.getOrElse(i) { 0f }
-                if (intensity < 0.02f) return@forEachIndexed   // skip invisible
+                // ── 2. Per-zone radial gradient blobs ──────────────────────────
+                LEFT_ZONES.forEachIndexed { i, zone ->
+                    val intensity = zoneIntensities.getOrElse(i) { 0f }
+                    if (intensity < 0.02f) return@forEachIndexed   // skip invisible
 
-                // Mirror the X position for the right foot
-                val zoneX = if (mirrored) w * (1f - zone.xFrac) else w * zone.xFrac
-                val zoneY = h * zone.yFrac
-                val radius = min(w, h) * zone.radiusFrac
+                    // Mirror the X position for the right foot
+                    val zoneX = if (mirrored) w * (1f - zone.xFrac) else w * zone.xFrac
+                    val zoneY = h * zone.yFrac
+                    val radius = min(w, h) * zone.radiusFrac
 
-                // Outer soft glow (full radius, low alpha)
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colorStops = arrayOf(
-                            0.0f to heatColor(intensity).copy(alpha = intensity * 0.55f),
-                            0.6f to heatColor(intensity * 0.6f).copy(alpha = intensity * 0.25f),
-                            1.0f to Color.Transparent,
+                    // Outer soft glow (full radius, low alpha)
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colorStops = arrayOf(
+                                0.0f to heatColor(intensity).copy(alpha = intensity * 0.55f),
+                                0.6f to heatColor(intensity * 0.6f).copy(alpha = intensity * 0.25f),
+                                1.0f to Color.Transparent,
+                            ),
+                            center = Offset(zoneX, zoneY),
+                            radius = radius * 1.4f,
                         ),
-                        center = Offset(zoneX, zoneY),
                         radius = radius * 1.4f,
-                    ),
-                    radius = radius * 1.4f,
-                    center = Offset(zoneX, zoneY),
-                )
-
-                // Inner hot core (tighter, brighter)
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colorStops = arrayOf(
-                            0.0f to heatColor(intensity).copy(alpha = intensity * 0.90f),
-                            0.5f to heatColor(intensity * 0.7f).copy(alpha = intensity * 0.50f),
-                            1.0f to Color.Transparent,
-                        ),
                         center = Offset(zoneX, zoneY),
+                    )
+
+                    // Inner hot core (tighter, brighter)
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colorStops = arrayOf(
+                                0.0f to heatColor(intensity).copy(alpha = intensity * 0.90f),
+                                0.5f to heatColor(intensity * 0.7f).copy(alpha = intensity * 0.50f),
+                                1.0f to Color.Transparent,
+                            ),
+                            center = Offset(zoneX, zoneY),
+                            radius = radius,
+                        ),
                         radius = radius,
+                        center = Offset(zoneX, zoneY),
+                    )
+                }
+            }
+
+            // ── 3. Foot outline stroke (on top of clip, so it stays crisp) ─────
+            drawPath(
+                path   = footPath,
+                color  = Color.White.copy(alpha = 0.30f),
+                style  = Stroke(width = 2.5f),
+            )
+
+            // ── 4. Dashed border outline when disconnected ──────────────────────
+            if (!connected) {
+                drawPath(
+                    path  = footPath,
+                    color = Color(0xFFAAAAAA).copy(alpha = 0.60f),
+                    style = Stroke(
+                        width      = 3f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f),
                     ),
-                    radius = radius,
-                    center = Offset(zoneX, zoneY),
                 )
             }
-        }
-
-        // ── 3. Foot outline stroke (on top of clip, so it stays crisp) ─────
-        drawPath(
-            path   = footPath,
-            color  = Color.White.copy(alpha = 0.30f),
-            style  = Stroke(width = 2.5f),
-        )
-
-        // ── 4. Dashed border outline when disconnected ──────────────────────
-        if (!connected) {
-            drawPath(
-                path  = footPath,
-                color = Color(0xFFAAAAAA).copy(alpha = 0.60f),
-                style = Stroke(
-                    width      = 3f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f),
-                ),
-            )
-        }
-    } // end Canvas
+        } // end Canvas
 
         // ── Disconnected overlay: icon + label centred on the foot ───────────
         if (!connected) {
@@ -375,6 +395,7 @@ private fun PressureLegend(modifier: Modifier = Modifier) {
 // 5 values (e.g. append "p0,p1,p2,p3,p4" after tempCelsius) and replace
 // the call to distributeFromSingle() with a direct 1-to-1 mapping:
 //
+//   // Zone order: Heel, Met-1, Met-2, Met-5, Hallux
 //   val zones = listOf(p0/255f, p1/255f, p2/255f, p3/255f, p4/255f)
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -386,6 +407,8 @@ fun PlantarPressureCard(
     rightConnected: Boolean,
     leftPacketSeq: Long = 0L,
     rightPacketSeq: Long = 0L,
+    leftPeakPressure: Float = 0f,
+    rightPeakPressure: Float = 0f,
     modifier: Modifier = Modifier,
 ) {
     // ── Connection state — each foot is independent ───────────────────────────
@@ -514,7 +537,7 @@ fun PlantarPressureCard(
                                 .size(6.dp)
                                 .background(
                                     color = if (leftConnected) DashboardColors.Green
-                                            else Color(0xFFCCCCCC),
+                                    else Color(0xFFCCCCCC),
                                     shape = androidx.compose.foundation.shape.CircleShape,
                                 )
                         )
@@ -558,7 +581,7 @@ fun PlantarPressureCard(
                                 .size(6.dp)
                                 .background(
                                     color = if (rightConnected) DashboardColors.Green
-                                            else Color(0xFFCCCCCC),
+                                    else Color(0xFFCCCCCC),
                                     shape = androidx.compose.foundation.shape.CircleShape,
                                 )
                         )
@@ -582,12 +605,12 @@ fun PlantarPressureCard(
             ) {
                 PressureReadout(
                     label     = "L Peak",
-                    value     = leftPressure,
+                    value     = leftPeakPressure,
                     connected = leftConnected,
                 )
                 PressureReadout(
                     label     = "R Peak",
-                    value     = rightPressure,
+                    value     = rightPeakPressure,
                     connected = rightConnected,
                 )
             }

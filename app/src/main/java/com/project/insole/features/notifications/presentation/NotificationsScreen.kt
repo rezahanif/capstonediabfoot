@@ -9,12 +9,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -41,67 +43,100 @@ import java.util.Locale
  * ever displayed; prompts name the foot and the action.
  */
 @Composable
-fun NotificationsScreen(viewModel: NotificationsViewModel) {
+fun NotificationsScreen(
+    viewModel: NotificationsViewModel,
+    onBack: () -> Unit = {}
+) {
     val state = viewModel.notificationsState.collectAsState().value
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 16.dp)
+            .background(DashboardColors.Background)
     ) {
-        // 1 ── Header ──────────────────────────────────────────────────────
-        Text(
-            text = "Alerts",
-            color = DashboardColors.Navy,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 4.dp)
-        )
-        Text(
-            text = "Gentle guidance, never alarms.",
-            color = DashboardColors.TextGray,
-            fontSize = 13.sp,
-            modifier = Modifier.padding(start = 20.dp, bottom = 16.dp)
-        )
+        // 1 ── Top App Bar (Centered with Back Button) ─────────────────────
+        NotificationsTopBar(onBack = onBack)
 
-        // 2 ── Hero status card (mirrors home SystemStatusCard) ────────────
-        HeroStatusCard(status = state.overallStatus)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 16.dp)
+        ) {
+            // 2 ── Hero status card (mirrors home SystemStatusCard) ────────────
+            HeroStatusCard(status = state.overallStatus)
 
-        // 3 ── Guidance prompts ────────────────────────────────────────────
-        if (state.prompts.isNotEmpty()) {
-            Text(
-                text = "WHAT YOU CAN DO",
-                color = DashboardColors.TextMuted,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 0.5.sp,
-                modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 8.dp)
-            )
-            state.prompts.forEach { prompt ->
-                GuidanceCard(prompt)
-            }
-        }
-
-        // 4 ── History — hidden while empty (honest, not fabricated) ───────
-        if (state.history.isNotEmpty()) {
-            Text(
-                text = "RECENT NOTIFICATIONS",
-                color = DashboardColors.TextMuted,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 0.5.sp,
-                modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 8.dp)
-            )
-            LazyColumn(
-                modifier = Modifier.heightIn(max = 320.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 20.dp)
-            ) {
-                items(state.history) { notification ->
-                    HistoryCard(notification)
+            // 3 ── Guidance prompts ────────────────────────────────────────────
+            if (state.prompts.isNotEmpty()) {
+                Text(
+                    text = "WHAT YOU CAN DO",
+                    color = DashboardColors.TextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.5.sp,
+                    modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 8.dp)
+                )
+                state.prompts.forEach { prompt ->
+                    GuidanceCard(prompt)
                 }
             }
+
+            // 4 ── History — hidden while empty (honest, not fabricated) ───────
+            if (state.history.isNotEmpty()) {
+                Text(
+                    text = "RECENT NOTIFICATIONS",
+                    color = DashboardColors.TextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.5.sp,
+                    modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 8.dp)
+                )
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 320.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 20.dp)
+                ) {
+                    items(state.history) { notification ->
+                        HistoryCard(notification)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationsTopBar(onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(73.dp)
+            .background(DashboardColors.Background)
+            .padding(horizontal = 20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            Icon(
+                imageVector = Icons.Default.ArrowBack,
+                contentDescription = "Back",
+                tint = DashboardColors.Navy
+            )
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "Alerts",
+                color = DashboardColors.Navy,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Gentle guidance, never alarms",
+                color = DashboardColors.TextGray,
+                fontSize = 12.sp
+            )
         }
     }
 }

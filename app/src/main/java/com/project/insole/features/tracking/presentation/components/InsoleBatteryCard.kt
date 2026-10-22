@@ -80,7 +80,7 @@ fun InsoleBatteryCard(
                 Icon(
                     imageVector = Icons.Default.Info,
                     contentDescription = "Bluetooth",
-                    tint = if (isConnected) Color(0xFF2563EB) else Color.Gray,
+                    tint = if (isConnected) DashboardColors.Brand else DashboardColors.TextLightGray,
                     modifier = Modifier.size(24.dp),
                 )
             }
@@ -93,7 +93,7 @@ fun InsoleBatteryCard(
                 CircularProgressIndicator(
                     progress = if (isConnected) batteryPct / 100f else 0f,
                     modifier = Modifier.fillMaxSize(),
-                    color = if (isConnected) DashboardColors.GreenMint else Color.LightGray,
+                    color = if (isConnected) DashboardColors.GreenMint else DashboardColors.TextLightGray,
                     trackColor = DashboardColors.ProgressTrack,
                     strokeWidth = 8.dp,
                     strokeCap = StrokeCap.Round,

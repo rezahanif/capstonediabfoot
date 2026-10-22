@@ -16,10 +16,17 @@ import com.project.insole.core.theme.DashboardColors
 @Composable
 fun SessionTimerSection(
     durationSeconds: Long,
-    isRecording: Boolean
+    isRecording: Boolean,
+    isConnected: Boolean = true
 ) {
     val minutes = (durationSeconds / 60).toString().padStart(2, '0')
     val seconds = (durationSeconds % 60).toString().padStart(2, '0')
+
+    val (statusLabel, statusColor, dotColor) = when {
+        !isConnected -> Triple("Disconnected", DashboardColors.TextMuted, DashboardColors.TextLightGray)
+        isRecording  -> Triple("Recording Active", DashboardColors.Green, DashboardColors.Green)
+        else         -> Triple("Paused", DashboardColors.Yellow, DashboardColors.Yellow)
+    }
 
     Column(
         modifier = Modifier
@@ -52,12 +59,12 @@ fun SessionTimerSection(
                 modifier = Modifier
                     .size(9.dp)
                     .clip(CircleShape)
-                    .background(if (isRecording) DashboardColors.Green else DashboardColors.Yellow)
+                    .background(dotColor)
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = if (isRecording) "Recording Active" else "Paused",
-                color = if (isRecording) DashboardColors.Green else DashboardColors.Yellow,
+                text = statusLabel,
+                color = statusColor,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium
             )

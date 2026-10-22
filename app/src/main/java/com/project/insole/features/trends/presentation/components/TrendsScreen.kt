@@ -5,8 +5,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -29,65 +33,98 @@ import com.project.insole.features.trends.presentation.TrendsViewModel
  * shown on Home), not medical raw data, so they stay visible.
  */
 @Composable
-fun TrendsScreen(viewModel: TrendsViewModel) {
+fun TrendsScreen(
+    viewModel: TrendsViewModel,
+    onBack: () -> Unit = {}
+) {
     val state = viewModel.trendsState.collectAsState().value
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 16.dp)
+            .background(DashboardColors.Background)
     ) {
-        // 1 ── Header ──────────────────────────────────────────────────────
-        Text(
-            text = "Trends",
-            color = DashboardColors.Navy,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 4.dp)
-        )
-        Text(
-            text = "Your week at a glance.",
-            color = DashboardColors.TextGray,
-            fontSize = 13.sp,
-            modifier = Modifier.padding(start = 20.dp, bottom = 16.dp)
-        )
+        // 1 ── Top App Bar (Centered with Back Button) ─────────────────────
+        TrendsTopBar(onBack = onBack)
 
-        // 2 ── Week summary hero card ──────────────────────────────────────
-        WeekSummaryCard(state)
-
-        // 3 ── Last 7 days ─────────────────────────────────────────────────
-        Text(
-            text = "LAST 7 DAYS",
-            color = DashboardColors.TextMuted,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = 0.5.sp,
-            modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 8.dp)
-        )
-
-        if (state.totalSteps == 0) {
-            EmptyHistoryCard()
-        } else {
-            WeekListCard(state.week, state.totalSteps)
-        }
-
-        // 4 ── Supportive footnote ─────────────────────────────────────────
-        Card(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = DashboardColors.InfoBadgeBg),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 16.dp)
         ) {
+            // 2 ── Week summary hero card ──────────────────────────────────────
+            WeekSummaryCard(state)
+
+            // 3 ── Last 7 days ─────────────────────────────────────────────────
             Text(
-                text = "Keep your insoles on during the day — the more you wear them, " +
-                    "the better this page understands your routine.",
+                text = "LAST 7 DAYS",
                 color = DashboardColors.TextMuted,
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-                modifier = Modifier.padding(14.dp)
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.5.sp,
+                modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 8.dp)
+            )
+
+            if (state.totalSteps == 0) {
+                EmptyHistoryCard()
+            } else {
+                WeekListCard(state.week, state.totalSteps)
+            }
+
+            // 4 ── Supportive footnote ─────────────────────────────────────────
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = DashboardColors.InfoBadgeBg),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Text(
+                    text = "Keep your insoles on during the day — the more you wear them, " +
+                        "the better this page understands your routine.",
+                    color = DashboardColors.TextMuted,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    modifier = Modifier.padding(14.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrendsTopBar(onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(73.dp)
+            .background(DashboardColors.Background)
+            .padding(horizontal = 20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            Icon(
+                imageVector = Icons.Default.ArrowBack,
+                contentDescription = "Back",
+                tint = DashboardColors.Navy
+            )
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "Trends",
+                color = DashboardColors.Navy,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Your week at a glance",
+                color = DashboardColors.TextGray,
+                fontSize = 12.sp
             )
         }
     }

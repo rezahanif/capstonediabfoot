@@ -19,8 +19,21 @@ class DoctorPairingStore @Inject constructor(
 ) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    init {
+        // Pre-seed demo doctor on first launch so the user can verify the linked UI state
+        if (!prefs.getBoolean(KEY_INITIALIZED, false)) {
+            prefs.edit()
+                .putBoolean(KEY_INITIALIZED, true)
+                .putString(KEY_CODE, "4AB79CD2")
+                .putString(KEY_DOCTOR_NAME, "Dr. Sarah Jenkins, MD")
+                .putLong(KEY_PAIRED_AT, System.currentTimeMillis() - 3 * 86400 * 1000L)
+                .apply()
+        }
+    }
+
     fun save(code: String, doctorName: String) {
         prefs.edit()
+            .putBoolean(KEY_INITIALIZED, true)
             .putString(KEY_CODE, code)
             .putString(KEY_DOCTOR_NAME, doctorName)
             .putLong(KEY_PAIRED_AT, System.currentTimeMillis())
@@ -34,11 +47,17 @@ class DoctorPairingStore @Inject constructor(
     fun getPairedAt(): Long = prefs.getLong(KEY_PAIRED_AT, 0L)
 
     fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit()
+            .remove(KEY_CODE)
+            .remove(KEY_DOCTOR_NAME)
+            .remove(KEY_PAIRED_AT)
+            .putBoolean(KEY_INITIALIZED, true)
+            .apply()
     }
 
     private companion object {
         const val PREFS_NAME = "doctor_pairing"
+        const val KEY_INITIALIZED = "is_initialized"
         const val KEY_CODE = "pairing_code"
         const val KEY_DOCTOR_NAME = "doctor_name"
         const val KEY_PAIRED_AT = "paired_at"

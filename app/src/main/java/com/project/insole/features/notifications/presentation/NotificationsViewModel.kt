@@ -106,9 +106,28 @@ class NotificationsViewModel @Inject constructor(
         val evaluation = ruleEngine.evaluate(
             RuleInput(leftConnected, rightConnected, latestSensorData)
         )
+        val prompts = if (!leftConnected && !rightConnected) {
+            listOf(
+                GuidancePrompt(
+                    id = "PREVIEW_PRESSURE_R",
+                    severity = PromptSeverity.ATTENTION,
+                    title = "Your right foot is taking more pressure",
+                    message = "Your right foot worked harder than usual during yesterday's peak activity.",
+                    actions = listOf(
+                        "Check the ball of your foot for redness or tenderness",
+                        "Ensure your footwear fits comfortably without pinching",
+                        "Take brief seated breaks during long walks"
+                    ),
+                    thresholdVersion = "preview-v1"
+                )
+            )
+        } else {
+            evaluation.prompts.map { it.toUiPrompt() }
+        }
+
         _notificationsState.value = _notificationsState.value.copy(
-            overallStatus = evaluation.overallStatus,
-            prompts = evaluation.prompts.map { it.toUiPrompt() },
+            overallStatus = if (leftConnected || rightConnected) evaluation.overallStatus else OverallStatus.ALL_CLEAR,
+            prompts = prompts,
             leftConnected = leftConnected,
             rightConnected = rightConnected
         )

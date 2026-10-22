@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.project.insole.R
 import com.project.insole.core.theme.AuthColors
 
@@ -51,32 +52,6 @@ fun LandingScreen(
                 )
             )
     ) {
-
-        // ── Header text ──────────────────────────────────────────────────────
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 80.dp, end = 24.dp),
-            horizontalAlignment = Alignment.End,
-        ) {
-            Text(
-                text = "SmartInsole",
-                color = AuthColors.TextLight,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = "Smarter Steps\nBetter You",
-                color = AuthColors.TextLight,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Normal,
-                letterSpacing = 1.sp,
-                textAlign = TextAlign.End,
-                lineHeight = 30.sp,
-            )
-        }
 
         // ── Hero product image (centred, fills most of the screen) ───────────
         BoxWithConstraints(
@@ -187,11 +162,38 @@ fun LandingScreen(
             }
         }
 
-        // ── Bottom CTA buttons ───────────────────────────────────────────────
+        // ── Header text (Sits in foreground on top of circles) ────────────────
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .zIndex(1f)
+                .padding(top = 80.dp, end = 24.dp),
+            horizontalAlignment = Alignment.End,
+        ) {
+            Text(
+                text = "SmartInsole",
+                color = AuthColors.TextLight,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "Smarter Steps\nBetter You",
+                color = AuthColors.TextLight,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Normal,
+                letterSpacing = 1.sp,
+                textAlign = TextAlign.End,
+                lineHeight = 30.sp,
+            )
+        }
+
         // ── Bottom CTA buttons ───────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .zIndex(2f)
                 .fillMaxWidth()
                 .padding(horizontal = 23.dp, vertical = 32.dp),
             horizontalArrangement = Arrangement.spacedBy(-10.dp), // Keeps your intentional overlapping layout design

@@ -59,15 +59,15 @@ fun StepsMetricCard(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 8.dp),
+                .padding(top = 14.dp, start = 16.dp, end = 16.dp, bottom = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             // Header
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.Start,
+                verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
                 Text(
                     text          = "DAILY STEP",
@@ -76,12 +76,15 @@ fun StepsMetricCard(
                     fontWeight    = FontWeight.ExtraBold,
                     letterSpacing = 0.55.sp,
                 )
-                WalkStateBadge(state = walkState)
+                WalkStateBadge(
+                    state = walkState,
+                    isConnected = leftConnected || rightConnected
+                )
             }
 
             // Circular progress
             Box(
-                modifier         = Modifier.size(80.dp),
+                modifier         = Modifier.size(72.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(
@@ -102,7 +105,7 @@ fun StepsMetricCard(
                     Text(
                         text       = "%,d".format(stepCount),
                         color      = DashboardColors.StepBlue,
-                        fontSize   = 16.sp,
+                        fontSize   = 15.sp,
                         fontWeight = FontWeight.ExtraBold,
                     )
                     Text(
@@ -167,7 +170,23 @@ fun StepsMetricCard(
 }
 
 @Composable
-private fun WalkStateBadge(state: WalkState) {
+private fun WalkStateBadge(state: WalkState, isConnected: Boolean) {
+    if (!isConnected) {
+        Surface(
+            shape = RoundedCornerShape(4.dp),
+            color = DashboardColors.ProgressTrack,
+        ) {
+            Text(
+                text = "Disconnected",
+                color = DashboardColors.TextMuted,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+        return
+    }
+
     val (label, color) = when (state) {
         WalkState.STANDING   -> "Standing" to DashboardColors.TextMuted
         WalkState.TRANSITION -> "Moving…"  to DashboardColors.GreenMint
@@ -183,7 +202,7 @@ private fun WalkStateBadge(state: WalkState) {
             color = color,
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
     }
 }

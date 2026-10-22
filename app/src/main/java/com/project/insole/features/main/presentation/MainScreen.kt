@@ -93,10 +93,24 @@ fun MainScreen(
                 )
             }
             composable("alert_tab") {
-                NotificationsScreen(viewModel = hiltViewModel<NotificationsViewModel>())
+                NotificationsScreen(
+                    viewModel = hiltViewModel<NotificationsViewModel>(),
+                    onBack = {
+                        bottomNavController.navigate("home_tab") {
+                            popUpTo("home_tab") { inclusive = true }
+                        }
+                    }
+                )
             }
             composable("trend_tab") {
-                TrendsScreen(viewModel = hiltViewModel<TrendsViewModel>())
+                TrendsScreen(
+                    viewModel = hiltViewModel<TrendsViewModel>(),
+                    onBack = {
+                        bottomNavController.navigate("home_tab") {
+                            popUpTo("home_tab") { inclusive = true }
+                        }
+                    }
+                )
             }
         }
     }

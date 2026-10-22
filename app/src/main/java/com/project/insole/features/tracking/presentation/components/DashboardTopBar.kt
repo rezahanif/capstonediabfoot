@@ -51,7 +51,7 @@ fun DashboardTopBar(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFEFEDF1))
+                    .background(DashboardColors.ProgressTrack)
                     .clickable { expanded = !expanded },
                 contentAlignment = Alignment.Center,
             ) {

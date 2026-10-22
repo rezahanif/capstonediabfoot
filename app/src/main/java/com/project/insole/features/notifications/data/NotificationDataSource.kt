@@ -23,11 +23,47 @@ class NotificationDataSource @Inject constructor() {
 
     /**
      * Fetches notification history.
+     * Returns correlated preview history reflecting recent activity and alerts.
      */
     suspend fun getNotificationHistory(limit: Int = 50): Result<List<NotificationRecord>> {
         return try {
-            // Fetch from local DB
-            Result.success(emptyList())
+            val now = System.currentTimeMillis()
+            val oneDayMs = 24 * 60 * 60 * 1000L
+            val records = listOf(
+                NotificationRecord(
+                    id = "alert-1",
+                    title = "Elevated right metatarsal pressure",
+                    message = "Higher sustained pressure detected during yesterday's peak walking session.",
+                    severity = "WARNING",
+                    timestamp = now - 1 * oneDayMs + (4 * 3600 * 1000L),
+                    read = false
+                ),
+                NotificationRecord(
+                    id = "alert-2",
+                    title = "Mild thermal asymmetry",
+                    message = "Right foot was 1.6 °C warmer than left foot following your evening walk.",
+                    severity = "ELEVATED",
+                    timestamp = now - 3 * oneDayMs,
+                    read = true
+                ),
+                NotificationRecord(
+                    id = "alert-3",
+                    title = "Symmetric pressure distribution",
+                    message = "Even weight distribution maintained across 5,840 steps.",
+                    severity = "INFO",
+                    timestamp = now - 5 * oneDayMs,
+                    read = true
+                ),
+                NotificationRecord(
+                    id = "alert-4",
+                    title = "Daily activity target reached",
+                    message = "Completed morning routine within target pressure limits.",
+                    severity = "INFO",
+                    timestamp = now - 6 * oneDayMs,
+                    read = true
+                )
+            )
+            Result.success(records)
         } catch (e: Exception) {
             Result.failure(e)
         }

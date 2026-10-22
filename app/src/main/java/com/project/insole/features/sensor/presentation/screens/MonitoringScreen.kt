@@ -33,6 +33,8 @@ fun MonitoringScreen(
 ) {
     val state = viewModel.sensorState.collectAsState().value
     val bleState = bleViewModel.bleState.collectAsState().value
+    val isConnected = bleState.isLeftConnected || bleState.isRightConnected
+    val hasActiveSession = isConnected && (state.sessionDurationSeconds > 0 || state.isConnected)
 
     Column(
         modifier = Modifier
@@ -51,8 +53,8 @@ fun MonitoringScreen(
             // 2 ── Timer Section ──────────────────────────────────────────
             SessionTimerSection(
                 durationSeconds = state.sessionDurationSeconds,
-                isRecording = bleState.leftDeviceState == com.project.insole.core.ble.model.BleDeviceState.Connected ||
-                            bleState.rightDeviceState == com.project.insole.core.ble.model.BleDeviceState.Connected
+                isRecording = isConnected,
+                isConnected = isConnected
             )
 
             // 3 ── Plantar Pressure Map Card ──────────────────────────────
@@ -100,16 +102,19 @@ fun MonitoringScreen(
                     bleViewModel.disconnect() // Explicitly disconnect both devices
                     onBack()
                 },
+                enabled = hasActiveSession,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 24.dp, bottom = 32.dp)
                     .height(52.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFBA1A1A),
-                    contentColor = Color.White
+                    containerColor = DashboardColors.Alert,
+                    contentColor = DashboardColors.CardBg,
+                    disabledContainerColor = DashboardColors.ProgressTrack,
+                    disabledContentColor = DashboardColors.TextLightGray
                 ),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = if (hasActiveSession) 4.dp else 0.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.StopCircle,
@@ -118,7 +123,7 @@ fun MonitoringScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "End Session",
+                    text = if (hasActiveSession) "End Session" else "No Active Session",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )

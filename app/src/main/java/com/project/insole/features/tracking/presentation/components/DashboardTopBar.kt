@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +21,7 @@ import com.project.insole.core.theme.DashboardColors
 
 @Composable
 fun DashboardTopBar(
+    onNavigateToSettings: () -> Unit,
     onLogout: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -68,6 +70,28 @@ fun DashboardTopBar(
                     .background(Color.White)
                     .width(150.dp)
             ) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            "Settings",
+                            color = DashboardColors.Navy,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    },
+                    onClick = {
+                        expanded = false
+                        onNavigateToSettings()
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = DashboardColors.Navy,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                )
                 DropdownMenuItem(
                     text = {
                         Text(

@@ -3,7 +3,24 @@ package com.project.insole.features.sensor.domain.model
 import kotlin.math.abs
 import kotlin.math.sqrt
 
-class WalkingFSM {
+/**
+ * CHANGE from original: accept a [Clock] parameter (default = [SystemClock]).
+ * Every other line is identical to the original.
+ *
+ * This single constructor change is all that is needed to make the
+ * entire FSM fully testable without Thread.sleep().
+ */
+class WalkingFSM(private val clock: Clock = SystemClock) {
+
+    companion object {
+        /**
+         * Exit gate for the TRANSITION dead zone: mid-range motion
+         * (MOTION_STOP ≤ accelMag ≤ MOTION_CONFIRM with low gyro) matched
+         * neither the confirm nor the stop branch and would trap the FSM in
+         * TRANSITION indefinitely. 2000 ms ≈ 10 packets at the 5 Hz rate.
+         */
+        const val TRANSITION_TIMEOUT_MS = 2000L
+    }
 
     // ── EMA ──────────────────────────────────────────────────────────────────
     private val alpha = 0.2f
@@ -34,7 +51,6 @@ class WalkingFSM {
 
     fun process(packet: SensorPacket): Int {
 
-        // ── Input is already in g (from user data: 0.092, -0.000, -1.013) ────
         val ax = packet.accelX
         val ay = packet.accelY
         val az = packet.accelZ
@@ -63,10 +79,9 @@ class WalkingFSM {
         gyroMag  = sqrt(gxF * gxF + gyF * gyF + gzF * gzF)
 
         // ── FSM ───────────────────────────────────────────────────────────────
-        val now = System.currentTimeMillis()
+        val now = clock.currentTimeMillis()
         when (state) {
             WalkState.STANDING -> {
-                // Incorporate gyro for better responsiveness (threshold in deg/s)
                 if (accelMag > SensorConstants.MOTION_START_THRESHOLD || gyroMag > 15.0f) {
                     state = WalkState.TRANSITION
                     walkingTimerMs = now
@@ -76,6 +91,8 @@ class WalkingFSM {
                 accelMag > SensorConstants.MOTION_CONFIRM_THRESHOLD && (now - walkingTimerMs > 100L) ->
                     state = WalkState.WALKING
                 accelMag < SensorConstants.MOTION_STOP_THRESHOLD && gyroMag < 10.0f ->
+                    state = WalkState.STANDING
+                now - walkingTimerMs > TRANSITION_TIMEOUT_MS ->
                     state = WalkState.STANDING
             }
             WalkState.WALKING -> {
@@ -97,8 +114,6 @@ class WalkingFSM {
                 stepTriggered = true
                 stepCount++
             }
-            // Hysteresis: Must drop below a lower value to re-arm the trigger
-            // Using MOTION_STOP_THRESHOLD as a safer reset point
             if (accelMag < SensorConstants.MOTION_STOP_THRESHOLD) {
                 stepTriggered = false
             }
@@ -107,6 +122,20 @@ class WalkingFSM {
         }
 
         return stepCount
+    }
+
+    /**
+     * Forces the FSM back to STANDING when the packet stream stalls (BLE
+     * drop, device switched off). The 1500 ms inactivity timer only runs
+     * inside [process], so without this the FSM would report WALKING forever
+     * after the stream stops. Step count is preserved — only the motion
+     * state is reset.
+     */
+    fun onStreamStalled() {
+        state              = WalkState.STANDING
+        stepTriggered      = false
+        standingTimerMs    = 0L
+        walkingTimerMs     = 0L
     }
 
     fun reset() {

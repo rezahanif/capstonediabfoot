@@ -7,7 +7,7 @@ import com.project.insole.core.database.dao.StepDao
 import com.project.insole.core.database.entity.HourlyStepEntity
 import com.project.insole.core.database.entity.StepEntity
 
-@Database(entities = [StepEntity::class, HourlyStepEntity::class], version = 2)
+@Database(entities = [StepEntity::class, HourlyStepEntity::class], version = 3)
 abstract class InsoleDatabase : RoomDatabase() {
     abstract fun stepDao(): StepDao
     abstract fun hourlyStepDao(): HourlyStepDao

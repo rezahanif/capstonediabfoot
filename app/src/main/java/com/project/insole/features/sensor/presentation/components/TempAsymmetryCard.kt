@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.project.insole.core.theme.DashboardColors
+import com.project.insole.features.sensor.domain.model.SensorConstants
 
 @Composable
 fun TempAsymmetryCard(
@@ -24,6 +25,11 @@ fun TempAsymmetryCard(
     modifier: Modifier = Modifier
 ) {
     val diff = kotlin.math.abs(leftTemp - rightTemp)
+    // 2.2 °C asymmetry is the clinically significant threshold (SensorConstants) —
+    // only flag the reading when it is actually reached.
+    val isClinicallySignificant = leftTemp > 0f && rightTemp > 0f &&
+        diff >= SensorConstants.TEMPERATURE_DIFF_WARNING
+    val pillColor = if (isClinicallySignificant) DashboardColors.Yellow else DashboardColors.TextMuted
 
     Card(
         modifier = modifier
@@ -52,7 +58,7 @@ fun TempAsymmetryCard(
 
             Surface(
                 shape = RoundedCornerShape(50.dp),
-                color = DashboardColors.Yellow,
+                color = pillColor,
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),

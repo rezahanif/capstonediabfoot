@@ -2,7 +2,6 @@ package com.project.insole.features.sensor.presentation.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -21,91 +21,25 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.project.insole.core.theme.DashboardColors
-import kotlin.math.min
+import com.project.insole.features.sensor.domain.usecase.MapPressureToGridUseCase
+import com.project.insole.features.sensor.presentation.PressureMapState
 
 // ════════════════════════════════════════════════════════════════════════════
-// SENSOR ZONE DEFINITIONS
+// PLANTAR PRESSURE MAP — real data only
 //
-// Each insole has 5 FSR sensor positions mapped to anatomical landmarks:
+// The heatmap renders the 50-cell grid produced by MapPressureToGridUseCase
+// from the insole's per-zone FSR readings (SensorPacketParser →
+// BleSensorDataSource → SensorViewModel.pressureMap). No raw-string parsing
+// and no fabricated zone distribution happens here anymore.
 //
-//   Zone 0 — Heel           (1 sensor, centre-rear calcaneus)
-//   Zone 1 — Metatarsal 1   (1 sensor, 1st met-head, medial ball)
-//   Zone 2 — Metatarsal 2   (1 sensor, 2nd met-head, central ball)
-//   Zone 3 — Metatarsal 5   (1 sensor, 5th met-head, lateral ball)
-//   Zone 4 — Hallux         (1 sensor, 1st toe / big-toe pad)
-//
-// Positions are expressed as fractions of the foot bounding box
-// (0,0) = top-left of the foot silhouette, (1,1) = bottom-right.
-//
-// ─── SINGLE-SENSOR MODE (current hardware) ───────────────────────────────
-// You have 1 sensor per insole now.  We distribute that single value across
-// all 5 zones using high-pressure anatomical weight-bearing ratios from
-// normal gait literature:
-//   Heel ~35 %  (dominant heel-strike load)
-//   Met-1 ~25 % (primary push-off / medial ball)
-//   Met-2 ~20 % (secondary central ball load)
-//   Met-5 ~12 % (lateral ball, lower but significant)
-//   Hallux ~8 % (toe-off contribution)
-// Weights sum to 1.0.  When you add the other 4 sensors, swap
-// distributeFromSingle() for a direct mapping.
+// Intensity is RELATIVE across both feet (cell ÷ max cell of both grids):
+// there is no calibrated absolute pressure scale yet — TD-11. Legacy v1
+// firmware sends a single whole-foot FSR, so the grid arrives uniform and is
+// scaled by the POC raw range (0–255); the card then says so in a caption.
 // ════════════════════════════════════════════════════════════════════════════
 
-private data class SensorZone(
-    /** Fractional X/Y position within the foot bounding box (0..1). */
-    val xFrac: Float,
-    val yFrac: Float,
-    /** Radius of the heatmap blob as a fraction of the foot WIDTH. */
-    val radiusFrac: Float,
-    /** Default weight when running in single-sensor mode. */
-    val defaultWeight: Float,
-)
-
-/**
- * Anatomical sensor positions for a LEFT foot.
- * Right foot zones are mirrored horizontally inside [FootHeatmap].
- *
- * Y=0 is the TOE end, Y=1 is the HEEL end  (matching the foot silhouette
- * path which is drawn top=toes, bottom=heel).
- *
- * Zone layout (left foot, looking at plantar surface):
- *   0 — Heel        : centre-rear calcaneus
- *   1 — Metatarsal 1: medial ball (1st met-head), inner forefoot
- *   2 — Metatarsal 2: central ball (2nd met-head), mid forefoot
- *   3 — Metatarsal 5: lateral ball (5th met-head), outer forefoot
- *   4 — Hallux      : big-toe pad, slightly medial
- */
-private val LEFT_ZONES = listOf(
-    SensorZone(xFrac = 0.50f, yFrac = 0.88f, radiusFrac = 0.32f, defaultWeight = 0.35f), // 0 Heel
-    SensorZone(xFrac = 0.28f, yFrac = 0.40f, radiusFrac = 0.22f, defaultWeight = 0.25f), // 1 Metatarsal 1
-    SensorZone(xFrac = 0.45f, yFrac = 0.38f, radiusFrac = 0.20f, defaultWeight = 0.20f), // 2 Metatarsal 2
-    SensorZone(xFrac = 0.70f, yFrac = 0.36f, radiusFrac = 0.18f, defaultWeight = 0.12f), // 3 Metatarsal 5
-    SensorZone(xFrac = 0.28f, yFrac = 0.10f, radiusFrac = 0.20f, defaultWeight = 0.08f), // 4 Hallux
-)
-
-/**
- * Convert a single FSR reading (0..255) into per-zone intensity values
- * using high-pressure anatomical weight-bearing ratios.
- *
- * Weights (must sum to 1.0):
- *   Heel 35 % · Met-1 25 % · Met-2 20 % · Met-5 12 % · Hallux 8 %
- *
- * Each zone intensity = normalised_value × (zone_weight / max_weight),
- * so the dominant zone (Heel) always reaches full intensity at peak load,
- * and lighter zones scale proportionally — preserving the high-pressure
- * distribution hierarchy across the single-sensor prototype.
- *
- * When you upgrade to 5 sensors, replace this with:
- *   fun directMapping(values: List<Float>) = values   (one-to-one)
- */
-private fun distributeFromSingle(rawValue: Float): List<Float> {
-    val normalised = (rawValue / 255f).coerceIn(0f, 1f)
-    return LEFT_ZONES.map { zone -> normalised * zone.defaultWeight * (1f / LEFT_ZONES.maxOf { it.defaultWeight }) }
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// HEATMAP COLOUR SCALE  (blue → cyan → green → yellow → red)
+// ─── HEATMAP COLOUR SCALE  (blue → cyan → green → yellow → red) ─────────────
 // Matches the legend in the reference design exactly.
-// ════════════════════════════════════════════════════════════════════════════
 
 private val HEATMAP_COLORS = listOf(
     Color(0xFF0A1172), // 0.00 — deep blue  (no pressure)
@@ -218,18 +152,28 @@ private fun buildFootPath(w: Float, h: Float, mirrored: Boolean): Path {
 // ════════════════════════════════════════════════════════════════════════════
 
 /**
- * Draws one foot with a pressure heatmap overlay.
+ * Draws one foot with the real 50-cell pressure grid clipped to the
+ * silhouette.
  *
- * @param zoneIntensities  List of 5 floats in [0..1], one per sensor zone.
- *                         Index order matches [LEFT_ZONES].
- * @param mirrored         true = right foot (reflects X axis).
+ * @param grid  Row-major 5×10 pressure grid from [MapPressureToGridUseCase]
+ *              (50 [Float]s, one generic foot: x = 0 medial, y = 0 toes).
+ * @param mirrored         true = right foot (grid columns are reflected on
+ *                         the X axis so medial stays medial).
+ * @param maxIntensity     Max cell value across BOTH feet's grids — the
+ *                         relative intensity divisor. Only used when
+ *                         [isZoned]; null means "no pressure anywhere".
+ * @param isZoned          true = v2 five-zone payload (relative kPa scale);
+ *                         false = legacy single-FSR payload (uniform grid,
+ *                         scaled by the 0–255 POC raw range).
  * @param connected        false = BLE device not connected; shows a greyed-out
  *                         silhouette with a dashed border and a "No Signal" label.
  */
 @Composable
 private fun FootHeatmap(
-    zoneIntensities: List<Float>,
+    grid: List<Float>,
     mirrored: Boolean,
+    maxIntensity: Float?,
+    isZoned: Boolean,
     connected: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -246,49 +190,45 @@ private fun FootHeatmap(
 
             val footPath = buildFootPath(w, h, mirrored)
 
+            val cellW = w / MapPressureToGridUseCase.GRID_COLS
+            val cellH = h / MapPressureToGridUseCase.GRID_ROWS
+
             // ── 1. Dark blue base fill ──────────────────────────────────────────
             clipPath(footPath) {
                 drawPath(footPath, color = Color(0xFF0A2050))
 
-                // ── 2. Per-zone radial gradient blobs ──────────────────────────
-                LEFT_ZONES.forEachIndexed { i, zone ->
-                    val intensity = zoneIntensities.getOrElse(i) { 0f }
-                    if (intensity < 0.02f) return@forEachIndexed   // skip invisible
+                // ── 2. Real 50-cell pressure grid, clipped to the silhouette ────
+                // Row-major: row 0 = toe end, row 4 = heel end; column 0 = medial.
+                for (row in 0 until MapPressureToGridUseCase.GRID_ROWS) {
+                    for (col in 0 until MapPressureToGridUseCase.GRID_COLS) {
+                        val value = grid.getOrElse(
+                            row * MapPressureToGridUseCase.GRID_COLS + col,
+                        ) { 0f }
 
-                    // Mirror the X position for the right foot
-                    val zoneX = if (mirrored) w * (1f - zone.xFrac) else w * zone.xFrac
-                    val zoneY = h * zone.yFrac
-                    val radius = min(w, h) * zone.radiusFrac
+                        val intensity = if (isZoned) {
+                            // Relative scale across both feet — no absolute
+                            // scale exists pre-calibration (TD-11).
+                            if (maxIntensity == null || maxIntensity <= 0f) 0f
+                            else value / maxIntensity
+                        } else {
+                            // Legacy single-FSR payload in the POC raw range.
+                            value / 255f
+                        }
+                        if (intensity < 0.02f) continue   // skip invisible
 
-                    // Outer soft glow (full radius, low alpha)
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colorStops = arrayOf(
-                                0.0f to heatColor(intensity).copy(alpha = intensity * 0.55f),
-                                0.6f to heatColor(intensity * 0.6f).copy(alpha = intensity * 0.25f),
-                                1.0f to Color.Transparent,
-                            ),
-                            center = Offset(zoneX, zoneY),
-                            radius = radius * 1.4f,
-                        ),
-                        radius = radius * 1.4f,
-                        center = Offset(zoneX, zoneY),
-                    )
+                        // Right foot mirrors columns: medial col 0 stays medial.
+                        val drawCol = if (mirrored) {
+                            MapPressureToGridUseCase.GRID_COLS - 1 - col
+                        } else {
+                            col
+                        }
 
-                    // Inner hot core (tighter, brighter)
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colorStops = arrayOf(
-                                0.0f to heatColor(intensity).copy(alpha = intensity * 0.90f),
-                                0.5f to heatColor(intensity * 0.7f).copy(alpha = intensity * 0.50f),
-                                1.0f to Color.Transparent,
-                            ),
-                            center = Offset(zoneX, zoneY),
-                            radius = radius,
-                        ),
-                        radius = radius,
-                        center = Offset(zoneX, zoneY),
-                    )
+                        drawRect(
+                            color = heatColor(intensity),
+                            topLeft = Offset(drawCol * cellW, row * cellH),
+                            size = Size(cellW, cellH),
+                        )
+                    }
                 }
             }
 
@@ -383,30 +323,19 @@ private fun PressureLegend(modifier: Modifier = Modifier) {
 //
 // Parameters
 // ──────────
-// rawBleLeft   Latest BLE string from Smart_Insole_Left  (or null)
-// rawBleRight  Latest BLE string from Smart_Insole_Right (or null)
-//
-// The pressure value is the 7th comma-separated field (index 6, 0-based)
-// in the BLE packet: "ax,ay,az,gx,gy,gz,pressureKPa,tempCelsius"
-// Range: 0–255 (mapped from the RFP ADC by the firmware).
-//
-// ── Upgrading to 5 sensors ────────────────────────────────────────────────
-// When your hardware has 5 FSR sensors, change the BLE packet to send all
-// 5 values (e.g. append "p0,p1,p2,p3,p4" after tempCelsius) and replace
-// the call to distributeFromSingle() with a direct 1-to-1 mapping:
-//
-//   // Zone order: Heel, Met-1, Met-2, Met-5, Hallux
-//   val zones = listOf(p0/255f, p1/255f, p2/255f, p3/255f, p4/255f)
+// pressureMap        Pre-rendered 5×10 grids for both feet
+//                    (SensorViewModel.pressureMap — computed by
+//                    MapPressureToGridUseCase from the parsed v2/legacy
+//                    stream). No raw BLE strings are parsed here.
+// leftPeakPressure   Session peak total-foot load, shown in the footer.
+// rightPeakPressure  Session peak total-foot load, shown in the footer.
 // ════════════════════════════════════════════════════════════════════════════
 
 @Composable
 fun PlantarPressureCard(
-    rawBleLeft: String?,
-    rawBleRight: String?,
+    pressureMap: PressureMapState,
     leftConnected: Boolean,
     rightConnected: Boolean,
-    leftPacketSeq: Long = 0L,
-    rightPacketSeq: Long = 0L,
     leftPeakPressure: Float = 0f,
     rightPeakPressure: Float = 0f,
     modifier: Modifier = Modifier,
@@ -414,14 +343,13 @@ fun PlantarPressureCard(
     // ── Connection state — each foot is independent ───────────────────────────
     val anyConnected = leftConnected || rightConnected
 
-    // ── Parse pressure from BLE strings ──────────────────────────────────────
-    // Use seq as key so it recomputes every new packet regardless of content equality
-    val leftPressure = remember(leftPacketSeq) { parsePressure(rawBleLeft) }
-    val rightPressure = remember(rightPacketSeq) { parsePressure(rawBleRight) }
-
-    // ── Distribute single sensor → 5 zone intensities ────────────────────────
-    val leftZones = remember(leftPacketSeq) { distributeFromSingle(leftPressure) }
-    val rightZones = remember(rightPacketSeq) { distributeFromSingle(rightPressure) }
+    // Relative intensity scale: the strongest cell across BOTH feet's grids.
+    // null = no pressure anywhere (or nothing connected) → all cells skip.
+    val maxIntensity = if (pressureMap.isZoned) {
+        (pressureMap.leftGrid + pressureMap.rightGrid).maxOrNull()?.takeIf { it > 0f }
+    } else {
+        null
+    }
 
     Card(
         modifier  = modifier.fillMaxWidth(),
@@ -520,10 +448,12 @@ fun PlantarPressureCard(
                     modifier = Modifier.weight(1f),
                 ) {
                     FootHeatmap(
-                        zoneIntensities = leftZones,
-                        mirrored        = false,
-                        connected       = leftConnected,
-                        modifier        = Modifier
+                        grid          = pressureMap.leftGrid,
+                        mirrored      = false,
+                        maxIntensity  = maxIntensity,
+                        isZoned       = pressureMap.isZoned,
+                        connected     = leftConnected,
+                        modifier      = Modifier
                             .fillMaxHeight(0.92f)
                             .fillMaxWidth(),
                     )
@@ -565,10 +495,12 @@ fun PlantarPressureCard(
                     modifier = Modifier.weight(1f),
                 ) {
                     FootHeatmap(
-                        zoneIntensities = rightZones,
-                        mirrored        = true,
-                        connected       = rightConnected,
-                        modifier        = Modifier
+                        grid          = pressureMap.rightGrid,
+                        mirrored      = true,
+                        maxIntensity  = maxIntensity,
+                        isZoned       = pressureMap.isZoned,
+                        connected     = rightConnected,
+                        modifier      = Modifier
                             .fillMaxHeight(0.92f)
                             .fillMaxWidth(),
                     )
@@ -593,6 +525,19 @@ fun PlantarPressureCard(
                         )
                     }
                 }
+            }
+
+            // ── Legacy-firmware caption: the grid is uniform, not zoned ───────
+            if (!pressureMap.isZoned && anyConnected) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text       = "5-zone view requires firmware v2",
+                    color      = DashboardColors.TextMuted,
+                    fontSize   = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign  = TextAlign.Center,
+                    modifier   = Modifier.fillMaxWidth(),
+                )
             }
 
             Spacer(Modifier.height(8.dp))
@@ -621,14 +566,6 @@ fun PlantarPressureCard(
 // ════════════════════════════════════════════════════════════════════════════
 // HELPERS
 // ════════════════════════════════════════════════════════════════════════════
-
-/** Extract the pressure value (field index 6) from a raw BLE string. */
-private fun parsePressure(raw: String?): Float {
-    if (raw.isNullOrBlank()) return 0f
-    return try {
-        raw.trim().split(",").getOrNull(6)?.toFloat() ?: 0f
-    } catch (_: Exception) { 0f }
-}
 
 @Composable
 private fun PressureReadout(label: String, value: Float, connected: Boolean) {

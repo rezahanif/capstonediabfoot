@@ -2,30 +2,47 @@ package com.project.insole.features.trends.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.project.insole.features.trends.data.TrendsDataSource
-import com.project.insole.features.trends.data.DailySummary
+import com.project.insole.core.database.dao.StepDao
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 import javax.inject.Inject
+
+/** One day of real activity from the local step history. */
+data class DayActivity(
+    val dayLabel: String,   // "Today", "Mon", "Tue"…
+    val steps: Int,
+    val isToday: Boolean
+)
 
 data class TrendsUiState(
     val isLoading: Boolean = false,
-    val dailySummaries: List<DailySummary> = emptyList(),
-    val weeklyHealthScore: Float = 0f,
-    val selectedDate: Long = System.currentTimeMillis(),
+    val week: List<DayActivity> = emptyList(),   // oldest → newest (Today last)
+    val totalSteps: Int = 0,
+    val activeDays: Int = 0,
+    val mostActiveDay: DayActivity? = null,
     val errorMessage: String? = null
 )
 
 /**
- * ViewModel for trends/analytics screen.
- * Shows medical summary by timeframe (daily, weekly, monthly).
+ * Trends tab — real activity data from the local step history (Room).
+ *
+ * The fabricated "Weekly Health Score" is gone on purpose: the product rule
+ * (patient-mobile-app-plan.md §1) forbids probability scores for patients.
+ * Temperature/pressure trends are not shown yet because the app does not
+ * persist thermal history — tracked as TD-7 in docs/TECH_DEBT.md.
  */
 @HiltViewModel
 class TrendsViewModel @Inject constructor(
-    private val trendsDataSource: TrendsDataSource
+    private val stepDao: StepDao
 ) : ViewModel() {
+
+    private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
     private val _trendsState = MutableStateFlow(TrendsUiState())
     val trendsState: StateFlow<TrendsUiState> = _trendsState
@@ -37,33 +54,31 @@ class TrendsViewModel @Inject constructor(
     fun loadTrends() {
         viewModelScope.launch {
             _trendsState.value = _trendsState.value.copy(isLoading = true)
-            
-            // Fetch daily summaries for last 7 days
-            val dailyResults = (0..6).map { dayOffset ->
-                val dateMs = System.currentTimeMillis() - (dayOffset * 24 * 60 * 60 * 1000)
-                trendsDataSource.getDailySummary(dateMs)
-            }
-
-            // Fetch weekly health score
-            val scoreResult = trendsDataSource.getWeeklyHealthScore()
-
-            scoreResult.onSuccess { score ->
-                val summaries = dailyResults.mapNotNull { it.getOrNull() }
+            try {
+                val today = LocalDate.now()
+                val days = (6 downTo 0).map { offset ->
+                    val date = today.minusDays(offset.toLong())
+                    val entity = stepDao.getStepsForDate(date.format(dateFormatter))
+                    DayActivity(
+                        dayLabel = if (offset == 0) "Today"
+                        else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                        steps = entity?.count ?: 0,
+                        isToday = offset == 0
+                    )
+                }
                 _trendsState.value = TrendsUiState(
                     isLoading = false,
-                    dailySummaries = summaries,
-                    weeklyHealthScore = score
+                    week = days,
+                    totalSteps = days.sumOf { it.steps },
+                    activeDays = days.count { it.steps > 0 },
+                    mostActiveDay = days.maxByOrNull { it.steps }?.takeIf { it.steps > 0 }
                 )
-            }.onFailure { exception ->
-                _trendsState.value = TrendsUiState(
+            } catch (e: Exception) {
+                _trendsState.value = _trendsState.value.copy(
                     isLoading = false,
-                    errorMessage = exception.message
+                    errorMessage = e.message
                 )
             }
         }
-    }
-
-    fun selectDate(dateMs: Long) {
-        _trendsState.value = _trendsState.value.copy(selectedDate = dateMs)
     }
 }

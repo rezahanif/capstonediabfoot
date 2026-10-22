@@ -24,6 +24,7 @@ import com.project.insole.features.sensor.presentation.SensorViewModel
 @Composable
 fun MainScreen(
     onNavigateToPairing: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     onLogout: () -> Unit,
     bleViewModel: com.project.insole.core.ble.BleViewModel
 ) {
@@ -76,6 +77,7 @@ fun MainScreen(
                     viewModel = sensorViewModel,
                     bleViewModel = bleViewModel,
                     onNavigateToPairing = onNavigateToPairing,
+                    onNavigateToSettings = onNavigateToSettings,
                     onLogout = onLogout
                 )
             }

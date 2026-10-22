@@ -1,5 +1,7 @@
 package com.project.insole.core.di
 
+import com.project.insole.features.notifications.domain.ThresholdsConfigRepository
+import com.project.insole.features.notifications.data.ThresholdsConfigRepositoryImpl
 import com.project.insole.features.sensor.domain.repository.SensorRepository
 import com.project.insole.features.sensor.data.repository.SensorRepositoryImpl
 import dagger.Binds
@@ -17,4 +19,10 @@ abstract class RepositoryModule {
     abstract fun bindSensorRepository(
         sensorRepositoryImpl: SensorRepositoryImpl
     ): SensorRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindThresholdsConfigRepository(
+        thresholdsConfigRepositoryImpl: ThresholdsConfigRepositoryImpl
+    ): ThresholdsConfigRepository
 }

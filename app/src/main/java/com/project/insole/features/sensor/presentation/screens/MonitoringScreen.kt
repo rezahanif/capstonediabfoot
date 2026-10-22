@@ -57,12 +57,9 @@ fun MonitoringScreen(
 
             // 3 ── Plantar Pressure Map Card ──────────────────────────────
             PlantarPressureCard(
-                rawBleLeft = bleState.leftRawData,
-                rawBleRight = bleState.rightRawData,
+                pressureMap = state.pressureMap,
                 leftConnected = bleState.isLeftConnected,
                 rightConnected = bleState.isRightConnected,
-                leftPacketSeq = bleState.leftPacketSeq,
-                rightPacketSeq = bleState.rightPacketSeq,
                 leftPeakPressure = bleState.leftPeakPressure,
                 rightPeakPressure = bleState.rightPeakPressure
             )

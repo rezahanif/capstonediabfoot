@@ -2,6 +2,8 @@ package com.project.insole.core.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.project.insole.core.ble.InsoleBleManager
 import com.project.insole.core.ble.BleConnectionManager
 import com.project.insole.core.database.InsoleDatabase
@@ -44,6 +46,18 @@ object AppModule {
         return InsoleNotificationManager(context)
     }
 
+    /**
+     * v2→v3: adds the per-foot step columns. A real migration (not
+     * fallbackToDestructiveMigration) because wiping historical step data is
+     * unacceptable for a medical monitoring app.
+     */
+    private val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE steps ADD COLUMN leftCount INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE steps ADD COLUMN rightCount INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): InsoleDatabase {
@@ -52,7 +66,7 @@ object AppModule {
             InsoleDatabase::class.java,
             "insole_db"
         )
-        .fallbackToDestructiveMigration() // For development simplicity during schema changes
+        .addMigrations(MIGRATION_2_3)
         .build()
     }
 

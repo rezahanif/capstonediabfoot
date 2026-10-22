@@ -21,4 +21,9 @@ object DashboardColors {
     val StepBlue          = Color(0xFF0F3D7A)
     val TempGreen         = Color(0xFF10B981)
     val TempBlue          = Color(0xFF93C5FD)
+
+    // Official tokens for one-off colors that screens used to hardcode.
+    val CardTintBlue      = Color(0xFFF0F7FF)   // highlighted (recognized) card bg
+    val SideRight         = Color(0xFFE91E63)   // RIGHT-insole accent
+    val Alert             = Color(0xFFE53935)   // destructive / disabled states
 }

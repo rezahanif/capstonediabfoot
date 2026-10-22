@@ -81,6 +81,12 @@ ax,ay,az,gx,gy,gz,pressure,temperature
 
 Example: `0.1,-9.8,0.3,0.0,0.0,0.1,127.0,34.2`
 
+**Units:** the app normalizes whatever units the firmware sends into canonical
+internal units (accel in g, gyro in deg/s) via `SensorUnitsProfile`
+(`features/sensor/domain/model/SensorUnitsProfile.kt`). The accel scale is
+auto-detected at session start from the first packets; a firmware unit change
+only requires switching the profile enum — FSM thresholds and UI never change.
+
 Two devices are used — one per foot — each advertising a unique BLE service UUID.
 
 ---
@@ -126,7 +132,7 @@ INTERNET
 
 | Device | Service UUID |
 |---|---|
-| Left insole | `4fa2c732-ca9a-4c20-9492-c167df3c942a` |
+| Left insole | `4fa2c732-ca9a-4c20-9492-c167df3c942b` |
 | Right insole | `4fa2c732-ca9a-4c20-9492-c167df3c942c` |
 
 Characteristic UUID (both): `beb5483e-36e1-4688-b7f5-ea07361b26c9`

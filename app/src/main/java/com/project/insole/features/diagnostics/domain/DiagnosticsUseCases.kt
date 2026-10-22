@@ -22,27 +22,34 @@ enum class HealthStatus {
 
 class GenerateDiagnosticReportUseCase @Inject constructor() {
     operator fun invoke(
-        batteryLevel: Int,
-        rssiStrength: Int,
+        batteryLevel: Int?,
+        rssiStrength: Int?,
         connectionState: String
     ): DiagnosticReport {
-        val batteryStatus = when (batteryLevel) {
-            in 80..100 -> "Excellent"
-            in 50..79 -> "Good"
-            in 20..49 -> "Low"
+        // Null = the firmware cannot report the value (TD-13: no battery
+        // monitoring hardware). Report it honestly as Unavailable — never a
+        // placeholder number.
+        val batteryStatus = when {
+            batteryLevel == null -> "Unavailable"
+            batteryLevel in 80..100 -> "Excellent"
+            batteryLevel in 50..79 -> "Good"
+            batteryLevel in 20..49 -> "Low"
             else -> "Critical"
         }
 
-        val signalQuality = when (rssiStrength) {
-            in -50..-30 -> "Excellent"
-            in -70..-51 -> "Good"
-            in -80..-71 -> "Fair"
+        val signalQuality = when {
+            rssiStrength == null -> "Unknown"
+            rssiStrength in -50..-30 -> "Excellent"
+            rssiStrength in -70..-51 -> "Good"
+            rssiStrength in -80..-71 -> "Fair"
             else -> "Poor"
         }
 
         val overallHealth = when {
-            batteryLevel > 50 && rssiStrength > -70 && connectionState == "Connected" -> HealthStatus.EXCELLENT
-            batteryLevel > 20 && rssiStrength > -80 && connectionState == "Connected" -> HealthStatus.GOOD
+            connectionState != "Connected" -> HealthStatus.POOR
+            batteryLevel != null && batteryLevel > 50 && (rssiStrength == null || rssiStrength > -70) -> HealthStatus.EXCELLENT
+            batteryLevel != null && batteryLevel > 20 && (rssiStrength == null || rssiStrength > -80) -> HealthStatus.GOOD
+            batteryLevel == null && (rssiStrength == null || rssiStrength > -80) -> HealthStatus.FAIR
             else -> HealthStatus.POOR
         }
 

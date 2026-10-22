@@ -47,6 +47,11 @@ gen/
 *.swo
 *~
 
+# Agent local files
+.zcode/
+.zcodeignore
+
+
 # Gradle wrapper
 !gradle/wrapper/gradle-wrapper.jar
 

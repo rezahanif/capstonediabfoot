@@ -1,16 +1,16 @@
 package com.project.insole.core.security
 
-import android.util.Base64
 import java.security.SecureRandom
+import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.SecretKeySpec
 
 /**
  * Placeholder for End-to-End Encryption (E2EE) using AES-256-GCM.
  * This remains dead code for now to avoid disrupting the current data flow.
+ * Uses java.util.Base64 to remain compatible with JVM Unit Tests.
  */
 object EncryptionManager {
 
@@ -44,14 +44,14 @@ object EncryptionManager {
         
         // Prepend IV to the encrypted data
         val combined = iv + encryptedData
-        return Base64.encodeToString(combined, Base64.DEFAULT)
+        return Base64.getEncoder().encodeToString(combined)
     }
 
     /**
      * Decrypts a Base64 encoded string using AES-256-GCM.
      */
     fun decrypt(encryptedBase64: String, secretKey: SecretKey): String {
-        val combined = Base64.decode(encryptedBase64, Base64.DEFAULT)
+        val combined = Base64.getDecoder().decode(encryptedBase64)
         val iv = combined.sliceArray(0 until IV_LENGTH_BYTE)
         val encryptedData = combined.sliceArray(IV_LENGTH_BYTE until combined.size)
         

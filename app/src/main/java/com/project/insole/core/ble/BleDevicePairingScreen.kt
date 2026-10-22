@@ -150,7 +150,7 @@ fun BleDevicePairingScreen(
                             )
                             Text(
                                 text = if (state.isBluetoothEnabled) "Enabled" else "Disabled",
-                                color = if (state.isBluetoothEnabled) DashboardColors.Green else Color.Red,
+                                color = if (state.isBluetoothEnabled) DashboardColors.Green else DashboardColors.Alert,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -158,7 +158,7 @@ fun BleDevicePairingScreen(
                         Icon(
                             imageVector = Icons.Default.Bluetooth,
                             contentDescription = null,
-                            tint = if (state.isBluetoothEnabled) DashboardColors.Brand else Color.Gray,
+                            tint = if (state.isBluetoothEnabled) DashboardColors.Brand else DashboardColors.TextLightGray,
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -270,9 +270,9 @@ private fun DeviceCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isRecognized) Color(0xFFF0F7FF) else Color.White
-        ),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isRecognized) DashboardColors.CardTintBlue else DashboardColors.CardBg
+                ),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isRecognized) 4.dp else 2.dp)
     ) {
         Row(
@@ -293,7 +293,7 @@ private fun DeviceCard(
                     if (isRecognized) {
                         Spacer(Modifier.width(8.dp))
                         Surface(
-                            color = if (side == "LEFT") DashboardColors.Brand else Color(0xFFE91E63),
+                            color = if (side == "LEFT") DashboardColors.Brand else DashboardColors.SideRight,
                             shape = RoundedCornerShape(4.dp)
                         ) {
                             Text(

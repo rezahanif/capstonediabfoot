@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 data class BleDataPacket(
     val data: ByteArray,
@@ -53,6 +55,17 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
     private val _rightDeviceState = MutableStateFlow<BleDeviceState>(BleDeviceState.Disconnected)
     val rightDeviceState: StateFlow<BleDeviceState> = _rightDeviceState
 
+    // True after an app-driven disconnect() ("End Session") — automatic
+    // reconnect watchers must not fight the user. Cleared by connect() and
+    // on the next successful service discovery.
+    @Volatile
+    var isUserInitiatedDisconnect = false
+        private set
+
+    /** The address currently registered for a side, if any (for reconnect bookkeeping). */
+    fun connectedAddressFor(isLeft: Boolean): String? =
+        addressToSide.entries.firstOrNull { it.value == isLeft }?.key
+
     private val _scannedDevices = MutableStateFlow<List<ScannedDevice>>(emptyList())
     val scannedDevices: StateFlow<List<ScannedDevice>> = _scannedDevices
 
@@ -63,11 +76,28 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
     private val _telemetryFlow = MutableSharedFlow<BleDataPacket>(extraBufferCapacity = 64)
     val telemetryFlow = _telemetryFlow.asSharedFlow()
 
+    // Observability for silent drops: tryEmit discards when the 64-slot buffer
+    // is full. Emission happens on a binder thread, so we must not suspend —
+    // we count and warn instead.
+    private val droppedPacketCount = AtomicLong(0)
+    private val lastDropWarnElapsedMs = AtomicLong(0L)
+
+    // ── CCCD write serialization (L8a) ──────────────────────────────────────
+    // Android allows only one GATT write in flight; firing every descriptor
+    // write back-to-back gets later CCCD writes silently dropped on some
+    // stacks, leaving characteristics unsubscribed (no data at all). Writes
+    // are queued here and released one-by-one from onDescriptorWrite.
+    private val descriptorWriteLock = Any()
+    private val pendingNotifyChars = ArrayDeque<Pair<BluetoothGatt, BluetoothGattCharacteristic>>()
+    private var descriptorWriteInFlight = false
+
     // Map to track multiple active GATT connections: address -> BluetoothGatt
-    private val activeGatts = mutableMapOf<String, BluetoothGatt>()
+    // ConcurrentHashMap: mutated from both the main thread (connect/disconnect)
+    // and GATT binder threads (callbacks) — a plain HashMap can corrupt here.
+    private val activeGatts = ConcurrentHashMap<String, BluetoothGatt>()
 
     // ✅ Lock this address to its side permanently at connection time
-    private val addressToSide = mutableMapOf<String, Boolean>() // address -> isLeft
+    private val addressToSide = ConcurrentHashMap<String, Boolean>() // address -> isLeft
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
@@ -171,6 +201,8 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
 
         val device = bluetoothAdapter?.getRemoteDevice(deviceAddress) ?: return
 
+        isUserInitiatedDisconnect = false
+
         // Use provided side if available, otherwise determine from UUID/Name
         val determinedIsLeft = isLeft ?: run {
             val scannedDevice = _scannedDevices.value.find { it.address == deviceAddress }
@@ -187,11 +219,20 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
         if (determinedIsLeft) _leftDeviceState.value = BleDeviceState.Connecting
         else _rightDeviceState.value = BleDeviceState.Connecting
 
+        // A second connect() for the same address would orphan the first
+        // GATT (overwritten without close) — release the stale one first.
+        activeGatts.remove(deviceAddress)?.let { stale ->
+            Log.w("InsoleBleManager", "Replacing an existing GATT for $deviceAddress")
+            stale.disconnect()
+            stale.close()
+        }
+
         val gatt = device.connectGatt(context, false, this)
         activeGatts[deviceAddress] = gatt
     }
 
     fun disconnect(deviceAddress: String? = null) {
+        isUserInitiatedDisconnect = true
         if (deviceAddress != null) {
             activeGatts[deviceAddress]?.let { gatt ->
                 val isLeft = addressToSide[deviceAddress] ?: true
@@ -247,9 +288,21 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
             BluetoothProfile.STATE_DISCONNECTED -> {
                 // Ensure proper state cleanup on target channel path
                 updateDeviceState(isLeft, BleDeviceState.Disconnected)
+                // Drop queued CCCD writes for this device and release the
+                // in-flight slot — a write to a closed gatt may never
+                // callback and would otherwise wedge the other insole's queue.
+                synchronized(descriptorWriteLock) {
+                    pendingNotifyChars.removeAll { it.first === gatt }
+                    descriptorWriteInFlight = false
+                }
                 gatt.close()
-                activeGatts.remove(address)
-                addressToSide.remove(address)
+                // Only clean the maps if this is the CURRENT connection for
+                // the address — a stale replaced GATT's late DISCONNECTED
+                // callback must not unregister the fresh one.
+                if (activeGatts[address] === gatt) {
+                    activeGatts.remove(address)
+                    addressToSide.remove(address)
+                }
             }
         }
     }
@@ -275,13 +328,7 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
         val isLeft = addressToSide.getOrPut(address) { determineSideFromGatt(gatt) }
 
         if (status == BluetoothGatt.GATT_SUCCESS) {
-            gatt.services.forEach { service ->
-                service.characteristics.forEach { characteristic ->
-                    if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY > 0) {
-                        enableNotifications(gatt, characteristic)
-                    }
-                }
-            }
+            queueNotifications(gatt)
             updateDeviceState(isLeft, BleDeviceState.Connected)
         } else {
             updateDeviceState(isLeft, BleDeviceState.Error("Service discovery failed"))
@@ -293,20 +340,66 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
         else _rightDeviceState.value = state
     }
 
-    private fun enableNotifications(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+    /**
+     * Queues every notify-capable characteristic for CCCD subscription and
+     * starts draining the queue. Kept subscribe-all (not filtered by the
+     * InsoleUUIDs characteristic constants) because the firmware's actual
+     * notify characteristic was never confirmed — see TECH_DEBT.md.
+     */
+    private fun queueNotifications(gatt: BluetoothGatt) {
+        synchronized(descriptorWriteLock) {
+            gatt.services.forEach { service ->
+                service.characteristics.forEach { characteristic ->
+                    if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY > 0) {
+                        pendingNotifyChars.addLast(gatt to characteristic)
+                    }
+                }
+            }
+        }
+        writeNextDescriptor(gatt)
+    }
+
+    /** Drains the queue while no descriptor write is in flight. */
+    private fun writeNextDescriptor(gatt: BluetoothGatt) {
+        synchronized(descriptorWriteLock) {
+            while (!descriptorWriteInFlight) {
+                val next = pendingNotifyChars.removeFirstOrNull() ?: return
+                descriptorWriteInFlight = true
+                if (!enableNotifications(next.first, next.second)) {
+                    Log.w("InsoleBleManager", "CCCD write failed for ${next.second.uuid}; continuing queue")
+                    descriptorWriteInFlight = false
+                }
+            }
+        }
+    }
+
+    override fun onDescriptorWrite(
+        gatt: BluetoothGatt?,
+        descriptor: BluetoothGattDescriptor?,
+        status: Int
+    ) {
+        super.onDescriptorWrite(gatt, descriptor, status)
+        if (gatt == null) return
+        // Advance the queue regardless of status — a failed CCCD write must
+        // not wedge the remaining subscriptions.
+        synchronized(descriptorWriteLock) { descriptorWriteInFlight = false }
+        writeNextDescriptor(gatt)
+    }
+
+    private fun enableNotifications(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic): Boolean {
         Log.d("InsoleBleManager", "Enabling notifications for ${characteristic.uuid}")
-        gatt.setCharacteristicNotification(characteristic, true)
+        if (!gatt.setCharacteristicNotification(characteristic, true)) return false
 
         val descriptor = characteristic.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
-        if (descriptor != null) {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                gatt.writeDescriptor(descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-            } else {
-                @Suppress("DEPRECATION")
-                descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                @Suppress("DEPRECATION")
-                gatt.writeDescriptor(descriptor)
-            }
+            ?: return false
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            gatt.writeDescriptor(descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) ==
+                android.bluetooth.BluetoothStatusCodes.SUCCESS
+        } else {
+            @Suppress("DEPRECATION")
+            descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            @Suppress("DEPRECATION")
+            gatt.writeDescriptor(descriptor)
         }
     }
 
@@ -343,7 +436,15 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
         val isLeft = addressToSide.getOrPut(address) { determineSideFromGatt(gatt) }
 
         // Broadcast via Flow instead of a single listener variable
-        _telemetryFlow.tryEmit(BleDataPacket(value, isLeft, address))
+        val emitted = _telemetryFlow.tryEmit(BleDataPacket(value, isLeft, address))
+        if (!emitted) {
+            val drops = droppedPacketCount.incrementAndGet()
+            val nowMs = android.os.SystemClock.elapsedRealtime()
+            val lastWarn = lastDropWarnElapsedMs.get()
+            if (nowMs - lastWarn > 5000L && lastDropWarnElapsedMs.compareAndSet(lastWarn, nowMs)) {
+                Log.w("InsoleBleManager", "Telemetry buffer overflow: $drops packets dropped so far (consumer too slow)")
+            }
+        }
     }
 
     // Deprecated but maintained for multi-listener transition

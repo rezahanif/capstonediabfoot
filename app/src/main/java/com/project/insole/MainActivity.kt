@@ -26,6 +26,7 @@ import com.project.insole.features.auth.presentation.screens.LandingScreen
 import com.project.insole.features.auth.presentation.screens.LoginScreen
 import com.project.insole.features.auth.presentation.screens.SignUpScreen
 import com.project.insole.features.main.presentation.MainScreen
+import com.project.insole.features.settings.presentation.SettingsScreen
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -93,6 +94,7 @@ class MainActivity : ComponentActivity() {
                             val authViewModel: AuthViewModel = hiltViewModel()
                             MainScreen(
                                 onNavigateToPairing = { navController.navigate("pairing") },
+                                onNavigateToSettings = { navController.navigate("settings") },
                                 onLogout = {
                                     authViewModel.logout()
                                     navController.navigate("landing") {
@@ -107,6 +109,13 @@ class MainActivity : ComponentActivity() {
                                 viewModel = sharedBleViewModel,
                                 onConnected = { navController.popBackStack() },
                                 onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("settings") {
+                            SettingsScreen(
+                                viewModel = hiltViewModel(),
+                                onBack = { navController.popBackStack() },
+                                onNavigateToPairing = { navController.navigate("pairing") }
                             )
                         }
                     }

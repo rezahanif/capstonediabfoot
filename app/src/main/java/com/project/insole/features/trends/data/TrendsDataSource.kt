@@ -4,8 +4,14 @@ import com.project.insole.features.sensor.domain.model.InsoleSensorData
 import javax.inject.Inject
 
 /**
- * Data source for sensor trends and medical summary data.
- * Aggregates data over time periods for analytics.
+ * Data source for sensor trends data.
+ *
+ * The fabricated `getDailySummary` (hardcoded 5000 steps) and
+ * `getWeeklyHealthScore` (hardcoded 85) were deleted — TD-4: the Trends tab
+ * now reads real step history from Room via TrendsViewModel, and no
+ * invented score or number may be presented to the patient.
+ * `fetchSensorDataByTimeframe` remains the honest remote-fetch scaffold for
+ * when the cloud API exists (the cloud is a dumb store — see cloud/README).
  */
 class TrendsDataSource @Inject constructor() {
 
@@ -17,55 +23,10 @@ class TrendsDataSource @Inject constructor() {
         endTime: Long
     ): Result<List<InsoleSensorData>> {
         return try {
-            // Fetch from Supabase
+            // Fetch from cloud backend (scaffold — not wired yet)
             Result.success(emptyList())
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
-
-    /**
-     * Calculates daily summary statistics.
-     */
-    suspend fun getDailySummary(date: Long): Result<DailySummary> {
-        return try {
-            Result.success(
-                DailySummary(
-                    date = date,
-                    avgPressure = 120,
-                    maxPressure = 200,
-                    minPressure = 50,
-                    avgTemperature = 32f,
-                    totalSteps = 5000,
-                    pressureAlerts = 2,
-                    temperatureAlerts = 0
-                )
-            )
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * Calculates weekly health score.
-     */
-    suspend fun getWeeklyHealthScore(): Result<Float> {
-        return try {
-            // Calculate based on alerts, compliance, etc.
-            Result.success(85f)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
 }
-
-data class DailySummary(
-    val date: Long,
-    val avgPressure: Int,
-    val maxPressure: Int,
-    val minPressure: Int,
-    val avgTemperature: Float,
-    val totalSteps: Int,
-    val pressureAlerts: Int,
-    val temperatureAlerts: Int
-)

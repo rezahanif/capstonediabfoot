@@ -16,6 +16,18 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * Pre-rendered plantar pressure grids for the monitoring screen's heatmap.
+ * Grids are row-major 5×10 [Float]s produced by [MapPressureToGridUseCase].
+ * [isZoned] is true when at least one foot delivered the 5-zone v2 payload;
+ * false means legacy single-FSR data (uniform grid, no zone info).
+ */
+data class PressureMapState(
+    val leftGrid: List<Float> = emptyList(),
+    val rightGrid: List<Float> = emptyList(),
+    val isZoned: Boolean = false
+)
+
 data class SensorUiState(
     val isLoading: Boolean = false,
     val fsrValues: List<Int> = emptyList(),
@@ -29,7 +41,8 @@ data class SensorUiState(
     val sessionDurationSeconds: Long = 0L,
     val rawBleLeft: String? = null,
     val rawBleRight: String? = null,
-    val isRefreshing: Boolean = false
+    val isRefreshing: Boolean = false,
+    val pressureMap: PressureMapState = PressureMapState()
 )
 
 @HiltViewModel
@@ -89,7 +102,8 @@ class SensorViewModel @Inject constructor(
                         stepCount = 0,
                         batteryLevel = 0,
                         thresholdAlerts = emptyList(),
-                        connectionQuality = "Disconnected"
+                        connectionQuality = "Disconnected",
+                        pressureMap = PressureMapState()
                     )}
                 }
             }
@@ -131,6 +145,13 @@ class SensorViewModel @Inject constructor(
     private fun updateSensorState(sensorData: InsoleSensorData) {
         val alerts = analyzePressureThresholdUseCase(sensorData)
 
+        // Render the per-foot 5×10 pressure grids. A 5-entry payload is the
+        // zoned v2 stream; anything else maps to an empty/uniform grid.
+        val leftGrid = mapPressureToGridUseCase(sensorData.leftZonePressuresKpa)
+        val rightGrid = mapPressureToGridUseCase(sensorData.rightZonePressuresKpa)
+        val isZoned = sensorData.leftZonePressuresKpa.size == MapPressureToGridUseCase.ZONED_INPUT_SIZE ||
+            sensorData.rightZonePressuresKpa.size == MapPressureToGridUseCase.ZONED_INPUT_SIZE
+
         _sensorState.update { it.copy(
             isLoading = false,
             fsrValues = sensorData.pressureValues,
@@ -138,7 +159,12 @@ class SensorViewModel @Inject constructor(
             stepCount = sensorData.stepCount,
             batteryLevel = sensorData.batteryLevel,
             connectionQuality = "Good",
-            thresholdAlerts = alerts.map { it.message }
+            thresholdAlerts = alerts.map { it.message },
+            pressureMap = PressureMapState(
+                leftGrid = leftGrid,
+                rightGrid = rightGrid,
+                isZoned = isZoned
+            )
         )}
     }
 }

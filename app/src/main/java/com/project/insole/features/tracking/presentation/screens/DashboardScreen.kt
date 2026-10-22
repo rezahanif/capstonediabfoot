@@ -21,6 +21,7 @@ fun DashboardScreen(
     viewModel: SensorViewModel,
     bleViewModel: com.project.insole.core.ble.BleViewModel,
     onNavigateToPairing: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     onLogout: () -> Unit
 ) {
     val state = viewModel.sensorState.collectAsState().value
@@ -33,7 +34,10 @@ fun DashboardScreen(
             .padding(bottom = 16.dp)
     ) {
         // 1 ── Top App Bar ────────────────────────────────────────────────
-        DashboardTopBar(onLogout = onLogout)
+        DashboardTopBar(
+            onNavigateToSettings = onNavigateToSettings,
+            onLogout = onLogout
+        )
 
         // 2 ── Greeting / Header ──────────────────────────────────────────
         GreetingSection(

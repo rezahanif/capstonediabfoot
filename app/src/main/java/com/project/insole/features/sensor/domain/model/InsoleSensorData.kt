@@ -21,5 +21,9 @@ data class InsoleSensorData(
     val walkState: WalkState,
     val combinedAccelMag: Float,
     val batteryLevel: Int,
-    val timestamp: Long
+    val timestamp: Long,
+    /** Per-zone pressures (kPa) in [FSR_ZONE_ORDER] order — 5 entries = v2 stream, empty = unavailable. */
+    val leftZonePressuresKpa: List<Float> = emptyList(),
+    /** Per-zone pressures (kPa) in [FSR_ZONE_ORDER] order — 5 entries = v2 stream, empty = unavailable. */
+    val rightZonePressuresKpa: List<Float> = emptyList(),
 )

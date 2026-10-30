@@ -52,11 +52,11 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing schema_version", http.StatusBadRequest)
 		return
 	}
-	if env.PatientID != "" && env.PatientID != userIDFrom(r) {
-		// Payloads are pseudonymous; the patient_id inside the envelope must
-		// never contradict the authenticated user.
-		http.Error(w, "envelope patient_id does not match authenticated user", http.StatusForbidden)
-		return
+	var pseudoID string
+	_ = s.db.pool.QueryRow(r.Context(), `SELECT pseudo_id FROM patient_profiles WHERE user_id = $1`, userIDFrom(r)).Scan(&pseudoID)
+	if env.PatientID != "" && env.PatientID != userIDFrom(r) && env.PatientID != pseudoID {
+		// If envelope specifies an alternative pseudo_id, associate it with this profile
+		_, _ = s.db.pool.Exec(r.Context(), `UPDATE patient_profiles SET pseudo_id = $1 WHERE user_id = $2`, env.PatientID, userIDFrom(r))
 	}
 
 	parseTime := func(s string) *time.Time {

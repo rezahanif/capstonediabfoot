@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 )
@@ -101,7 +102,7 @@ func (s *server) handlePatientUploads(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if payloads == nil {
-		payloads = [][]byte{}
+		payloads = []json.RawMessage{}
 	}
 	writeJSON(w, http.StatusOK, payloads)
 }

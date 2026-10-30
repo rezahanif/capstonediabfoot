@@ -33,7 +33,7 @@ func main() {
 	googleWebAud := getenv("GOOGLE_WEB_CLIENT_ID", "")
 	addr := getenv("ADDR", ":8080")
 
-	if dbURL == "" || jwtSecret == "" || (googleAud == "" && googleWebAud == "") {
+	if dbURL == "" || jwtSecret == "" || (googleAud == "" && googleWebAud == "" && os.Getenv("ALLOW_DEV_AUTH") != "true") {
 		log.Fatal("DATABASE_URL, JWT_SECRET and GOOGLE_CLIENT_ID (and/or GOOGLE_WEB_CLIENT_ID) must be set")
 	}
 
@@ -48,6 +48,8 @@ func main() {
 	mux := http.NewServeMux()
 	// Auth
 	mux.HandleFunc("POST /v1/auth/google", s.handleGoogleLogin)
+	mux.HandleFunc("POST /v1/auth/login", s.handleEmailLogin)
+	mux.HandleFunc("POST /v1/auth/register", s.handleEmailRegister)
 	mux.Handle("GET /v1/me", s.auth(http.HandlerFunc(s.handleMe)))
 
 	// Versioned thresholds config (TD-8) — static distribution, no processing

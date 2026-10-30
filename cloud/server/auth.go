@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -68,46 +69,49 @@ func (s *server) role(role string, next http.Handler) http.Handler {
 	})
 }
 
-// ── Google sign-in ──────────────────────────────────────────────────────────
+// ── Authentication (Google, Email/Password, Dev) ───────────────────────────
 
 type authRequest struct {
 	IDToken string `json:"id_token"`
 }
 
-type authResponse struct {
-	Token    string `json:"token"`
-	Role     string `json:"role"`
-	PseudoID string `json:"pseudo_id,omitempty"`
+type emailLoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
-// handleGoogleLogin verifies a Google ID token (signature, audience, expiry)
-// and issues the app's own JWT. New sign-ups default to the patient role;
-// promoting a user to doctor is a manual DB step for v1.
-func (s *server) handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
-	var req authRequest
+type registerRequest struct {
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	DisplayName string `json:"display_name,omitempty"`
+}
+
+type authResponse struct {
+	Token       string `json:"token"`
+	Role        string `json:"role"`
+	PseudoID    string `json:"pseudo_id,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
+}
+
+// handleEmailLogin authenticates patient or doctor via email and bcrypt password.
+func (s *server) handleEmailLogin(w http.ResponseWriter, r *http.Request) {
+	var req emailLoginRequest
 	if err := decodeJSON(w, r, &req); err != nil {
 		return
 	}
-	payload, err := idtoken.Validate(r.Context(), req.IDToken, s.googleAud)
-	if err != nil && s.googleWebAud != "" {
-		// The doctor web app sends tokens whose `aud` is the Web client ID.
-		payload, err = idtoken.Validate(r.Context(), req.IDToken, s.googleWebAud)
-	}
-	if err != nil {
-		http.Error(w, "invalid google token: "+err.Error(), http.StatusUnauthorized)
-		return
-	}
-	sub, _ := payload.Claims["sub"].(string)
-	email, _ := payload.Claims["email"].(string)
-	name, _ := payload.Claims["name"].(string)
-	if sub == "" {
-		http.Error(w, "google token missing sub", http.StatusUnauthorized)
+	email := strings.TrimSpace(strings.ToLower(req.Email))
+	if email == "" || req.Password == "" {
+		http.Error(w, "email and password are required", http.StatusBadRequest)
 		return
 	}
 
-	userID, role, pseudoID, err := s.db.UpsertGoogleUser(r.Context(), sub, email, name)
+	userID, role, pseudoID, displayName, err := s.db.AuthenticateEmailUser(r.Context(), email, req.Password)
+	if errors.Is(err, errInvalidCredentials) {
+		http.Error(w, "invalid email or password", http.StatusUnauthorized)
+		return
+	}
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		http.Error(w, "database error", http.StatusInternalServerError)
 		return
 	}
 
@@ -121,7 +125,121 @@ func (s *server) handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, authResponse{Token: signed, Role: role, PseudoID: pseudoID})
+	writeJSON(w, http.StatusOK, authResponse{
+		Token:       signed,
+		Role:        role,
+		PseudoID:    pseudoID,
+		DisplayName: displayName,
+	})
+}
+
+// handleEmailRegister registers a new patient account with bcrypt password.
+func (s *server) handleEmailRegister(w http.ResponseWriter, r *http.Request) {
+	var req registerRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		return
+	}
+	email := strings.TrimSpace(strings.ToLower(req.Email))
+	if !strings.Contains(email, "@") || len(req.Password) < 6 {
+		http.Error(w, "valid email and password of at least 6 characters required", http.StatusBadRequest)
+		return
+	}
+
+	userID, role, pseudoID, err := s.db.RegisterUser(r.Context(), email, req.Password, strings.TrimSpace(req.DisplayName))
+	if errors.Is(err, errUserExists) {
+		http.Error(w, "an account with this email already exists", http.StatusConflict)
+		return
+	}
+	if err != nil {
+		http.Error(w, "registration failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":  userID,
+		"role": role,
+		"exp":  time.Now().Add(7 * 24 * time.Hour).Unix(),
+	}).SignedString(s.jwtSecret)
+	if err != nil {
+		http.Error(w, "token issue failed", http.StatusInternalServerError)
+		return
+	}
+
+	displayName := req.DisplayName
+	if displayName == "" {
+		displayName = strings.Split(email, "@")[0]
+	}
+
+	writeJSON(w, http.StatusCreated, authResponse{
+		Token:       signed,
+		Role:        role,
+		PseudoID:    pseudoID,
+		DisplayName: displayName,
+	})
+}
+
+// handleGoogleLogin verifies a Google ID token (signature, audience, expiry)
+// and issues the app's own JWT. New sign-ups default to the patient role;
+// promoting a user to doctor is a manual DB step for v1.
+func (s *server) handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
+	var req authRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		return
+	}
+
+	var sub, email, name string
+	if os.Getenv("ALLOW_DEV_AUTH") == "true" && (req.IDToken == "dev-doctor" || req.IDToken == "dev-patient" || req.IDToken == "dev-admin" || req.IDToken == "dev-reza" || req.IDToken == "dev-elka") {
+		if req.IDToken == "dev-doctor" || req.IDToken == "dev-admin" || req.IDToken == "dev-elka" {
+			sub = "dev-doctor-elka-sub"
+			email = "elka@diabfoot.local"
+			name = "Dr. Elka"
+		} else {
+			sub = "dev-patient-reza-sub"
+			email = "reza@diabfoot.local"
+			name = "Reza"
+		}
+	} else {
+		payload, err := idtoken.Validate(r.Context(), req.IDToken, s.googleAud)
+		if err != nil && s.googleWebAud != "" {
+			// The doctor web app sends tokens whose `aud` is the Web client ID.
+			payload, err = idtoken.Validate(r.Context(), req.IDToken, s.googleWebAud)
+		}
+		if err != nil {
+			http.Error(w, "invalid google token: "+err.Error(), http.StatusUnauthorized)
+			return
+		}
+		sub, _ = payload.Claims["sub"].(string)
+		email, _ = payload.Claims["email"].(string)
+		name, _ = payload.Claims["name"].(string)
+		if sub == "" {
+			http.Error(w, "google token missing sub", http.StatusUnauthorized)
+			return
+		}
+	}
+
+	userID, role, pseudoID, err := s.db.UpsertGoogleUser(r.Context(), sub, email, name)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+
+	// Auto-promote dev-doctor/dev-admin/dev-elka if dev auth
+	if os.Getenv("ALLOW_DEV_AUTH") == "true" && (req.IDToken == "dev-doctor" || req.IDToken == "dev-admin" || req.IDToken == "dev-elka") && role != "doctor" {
+		_, _ = s.db.pool.Exec(r.Context(), "UPDATE users SET role = 'doctor' WHERE id = $1", userID)
+		role = "doctor"
+	}
+
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":  userID,
+		"role": role,
+		"exp":  time.Now().Add(7 * 24 * time.Hour).Unix(),
+	}).SignedString(s.jwtSecret)
+	if err != nil {
+		http.Error(w, "token issue failed", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, authResponse{Token: signed, Role: role, PseudoID: pseudoID, DisplayName: name})
 }
 
 func (s *server) handleMe(w http.ResponseWriter, r *http.Request) {

@@ -17,7 +17,7 @@ const defaultThresholdsConfigJSON = `{
   "thermal_delta_warning_c": 2.2,
   "thermal_persistence_count": 3,
   "thermal_cooldown_minutes": 60,
-  "pressure_warning": 200,
+  "pressure_warning": 2000,
   "pressure_cooldown_minutes": 30
 }`
 

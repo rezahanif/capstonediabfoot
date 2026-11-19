@@ -10,10 +10,11 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE users (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    role          TEXT NOT NULL CHECK (role IN ('patient', 'doctor')),
+    role          TEXT NOT NULL DEFAULT 'patient' CHECK (role IN ('patient', 'doctor')),
     google_sub    TEXT NOT NULL UNIQUE,          -- stable Google identity
     email         TEXT,                          -- contact only, never in payloads
     display_name  TEXT,
+    password_hash TEXT,                          -- bcrypt hash for email/password auth
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -35,6 +36,23 @@ CREATE TABLE patient_profiles (
     linked_at        TIMESTAMPTZ,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE OR REPLACE FUNCTION create_patient_profile()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.role = 'patient' THEN
+        INSERT INTO patient_profiles (user_id) VALUES (NEW.id)
+        ON CONFLICT (user_id) DO NOTHING;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_user_create_patient_profile ON users;
+CREATE TRIGGER trg_user_create_patient_profile
+AFTER INSERT ON users
+FOR EACH ROW
+EXECUTE FUNCTION create_patient_profile();
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Doctor → patients: 1 doctor : N patients. The UNIQUE on patient_id is the

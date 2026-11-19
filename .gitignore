@@ -71,3 +71,18 @@ lint-results-*.html
 
 # Built application files
 *.o
+
+# Go cloud server binaries
+cloud/server/insole-cloud
+cloud/server/insole-cloud-linux
+
+# Report artifacts & screenshots (local evidence workspace)
+artifacts/
+
+# Loose root sensor logger CSVs
+/sensor_record*.csv
+
+# Python bytecode
+__pycache__/
+**/__pycache__/
+*.pyc

@@ -50,19 +50,15 @@ to the real 5-zone 5×10 grid and invoked by `SensorViewModel`
 it renders the ViewModel grid, with an honest un-zoned caption while legacy
 firmware streams. Plan: `docs/plans/TD3-TD4-PLAN.md` Part B.
 
-## TD-4 — Fabricated remote/diagnostic data sources (EXECUTED, 2026-10-03)
+## TD-4 — Fabricated remote/diagnostic data sources (CLOSED, 2026-10-25)
 
-**Status:** executed. Deleted: fabricated `getDailySummary` /
-`getWeeklyHealthScore` / `DailySummary` (Trends reads real Room steps).
-`DiagnosticsDataSource` now reports real RSSI from `InsoleBleManager` scan
-results and `batteryLevel = null` (renders "Unavailable") — no placeholder
-numbers. `SensorConstants` relabeled with provenance: 200/240 = device-scale
-placeholder (TD-11), 2.2 °C = literature-sourced (JMIR mHealth 2025 /
-IWGDF 2023), step thresholds = POC-tuned. Encryption scope settled (Part C1
-of the plan): patient profile = Keystore-encrypted (`EncryptionManager`'s
-assigned job); sensor/usage summaries = TLS + plain JSONB. Remaining:
-wire `EncryptionManager` when the cloud sync module exists; wire
-`Supabase`/`Notification` scaffolds when the backend lands.
+**Status:** closed.
+- Deleted: fabricated `getDailySummary`, `getWeeklyHealthScore`, `DailySummary`, and fake `calibrateDevice()` stub.
+- Patient Live Monitor (`MonitoringScreen.kt` & `TempAsymmetryCard.kt`): cleaned of raw Celsius and ΔT numbers per Rule R1 (displays qualitative "BALANCED", "TIME TO CHECK", and "Optimal"/"Warm" instead of panic-inducing decimals). "End Session" now resets session stats without forcibly terminating BLE connection.
+- Doctor Diagnostics (`DiagnosticsScreen.kt`): created and wired under Settings → DEVICE. Preserves exact raw numbers (Left/Right live & peak °C, ΔT asymmetry, peak kPa, RSSI dBm, protocol metadata) specifically for doctor/clinician inspection ("keep the number for doctor").
+- `DiagnosticsDataSource` now aggregates real-time hardware telemetry from `InsoleBleManager` and `BleSensorDataSource`.
+- DataExport module is active: `DataExportManager` and `GenerateCloudPayloadUseCase` produce exact `DATA_CONTRACT.md` v1.0 JSON envelopes and clinical CSV reports, with Android Sharesheet integration under Settings.
+- Remaining cloud scaffolds (Encryption/Supabase sync) will activate when backend HTTP sync endpoint lands.
 
 ## TD-5 — Subscribe to ALL notify characteristics
 
@@ -92,22 +88,17 @@ a QR in the doctor web app, and add a "Scan QR" alternative in
 `DoctorLinkCard`. The server-side contract does not change — the QR simply
 encodes the same pairing code.
 
-## TD-7 — Temperature/pressure history is not persisted (Trends is steps-only)
+## TD-7 — Temperature/pressure history is not persisted (CLOSED, 2026-10-25)
 
-**Status:** deferred.
-**Code:** `BleSensorDataSource` keeps only per-foot peaks in memory;
-Room stores steps (daily/hourly) only.
+**Status:** closed.
+**Code:** `DailyFootMetricEntity`, `DailyFootMetricDao`, `InsoleDatabase` (v4 with non-destructive `MIGRATION_3_4`), `BleSensorDataSource` accumulator, `TrendsViewModel`, `TrendsScreen`.
 
-**Problem:** the Trends tab can show real step history, but real
-temperature trends and pressure exposure over days need persisted history
-(min/max/avg per foot per day, episode log) that the app currently discards
-between sessions. Until then, `cloud/DATA_CONTRACT.md`'s `temperature` and
-`episodes` blocks can't be produced honestly for past days.
-
-**To close:** add a Room table for daily foot summaries (per-foot min/max/
-avg temp, peak pressure, wear minutes), populate it from the live flow
-under the packet mutex, then (a) surface plain-word trends on the patient
-Trends tab, (b) produce the full DATA_CONTRACT batches for upload.
+**Resolution:**
+1. Room table `daily_foot_metrics` persists daily summaries (per-foot min/max/sum/samples temperature, peak pressures in kPa, wear minutes).
+2. `BleSensorDataSource` maintains a thread-safe accumulator guarded by `packetMutex`, loading the active day on init, tracking wear minutes during active streams, and flushing to Room periodically every 60s and on session reset.
+3. Trends tab displays honest, calm plain-word **Thermal Balance** (Normal balance vs Mild warmth vs Attention) with 7-day status dot indicators adhering to UX-BRAND-SPEC R1, R5, and R7.
+4. Trends tab displays honest **Daily Wear Time** adherence tracking patient daily compliance.
+5. `SensorRepository` provides daily metrics flow and queries for local analytics and the upcoming cloud sync pipeline.
 
 ## TD-8 — Prompt rules hard-coded in the ViewModel (IMPLEMENTED, 2026-10-03)
 
@@ -134,17 +125,12 @@ configurable thresholds ("configuration, not hard-coded") with clinical
 sign-off; the values were compile-time constants and the rule evaluator
 lived in the presentation layer.
 
-## TD-9 — PlantarPressureCard hardcodes colors outside the palette
+## TD-9 — PlantarPressureCard hardcodes colors outside the palette (EXECUTED, 2026-10-24)
 
-**Status:** deferred (cosmetic).
-**Code:** `features/sensor/presentation/components/PlantarPressureCard.kt`.
-
-**Problem:** a few `Color(0x…)` literals bypass the `DashboardColors`
-palette locked in docs/design/UX-BRAND-SPEC.md. Purely a token-hygiene
-issue; visual output is consistent.
-
-**To close:** replace the literals with `DashboardColors` tokens (add new
-official tokens to `DashboardTheme.kt` if a color has no equivalent).
+**Status:** closed. All 8 heatmap spectrum levels (blue → cyan → teal → green →
+yellow → orange → red) and foot silhouette/indicator grays have been defined
+as official tokens in `DashboardColors` (`DashboardTheme.kt`). Zero raw `Color(0x…)`
+literals remain in `PlantarPressureCard.kt`.
 
 ## TD-10 — BLE payload contract v2 (FIX on both sides landed, 2026-10-03)
 

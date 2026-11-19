@@ -1,158 +1,98 @@
 # DiabFoot — IoT Diabetic Foot Monitoring
 
-An Android application that monitors diabetic foot health in real time using a custom BLE-connected smart insole. Built with Kotlin, Jetpack Compose, Clean Architecture, and OOUX ORCA framework.
+An Android application, ESP32-C3 firmware suite, and self-hosted Go + PostgreSQL backend for early risk monitoring of Diabetic Foot Ulcer (DFU) via a dual smart-insole pair.
 
 ---
 
 ## Overview
 
-DiabFoot connects to a pair of ESP32-based smart insoles via Bluetooth Low Energy to continuously monitor plantar pressure distribution and foot temperature — two critical early indicators of diabetic foot complications. Sensor data is streamed live to the app, visualized on an interactive foot pressure map, and stored via Supabase for longitudinal tracking.
+DiabFoot connects to left and right ESP32-C3 smart insoles over Bluetooth Low Energy (BLE) to monitor plantar pressure distribution across five anatomical zones, midfoot skin temperature, and gait biomechanics.
+
+The system uses a **three-layer architecture**:
+1. **Edge (`firmware/`)** — ESP32-C3 microcontrollers sample 5× FSR sensors, an NTC thermistor (via ADS1115), and an MPU-6050 IMU, streaming BLE notifications at **5 Hz**.
+2. **Patient Mobile App (`app/`)** — Kotlin + Jetpack Compose (Clean Architecture, Hilt, Room DB) handles packet parsing, IMU+FSR walking FSM, wear-gating, 2-day thermal asymmetry (`ΔT >= 2.2 °C`) & weight-scaled plantar pressure evaluation, calm patient-facing guidance (`PromptRuleEngine`), and offline-first persistence.
+3. **Cloud Backend (`cloud/`)** — Self-hosted Go REST API (`cloud/server/`) + PostgreSQL (`cloud/schema.sql`) acting purely as an idempotent **dumb store** (`DATA_CONTRACT.md` v1.0) with unified JWT auth (Google ID-token + email/password) and 1:N doctor–patient pairing. Clinician analytics are rendered client-side by the companion web console (`diabfoot-webapp-for-doctor`, Vue 3 + Vite + TypeScript).
 
 ---
 
-## Features
+## Key Features
 
-- **Real-time BLE streaming** — Dual-insole connection (left & right) with auto-reconnect
-- **Plantar pressure map** — Grid-based pressure visualization per foot
-- **Temperature monitoring** — NTC thermistor readings with asymmetry alerts
-- **Step counting** — Walking state detection using a dual-foot finite state machine
-- **Threshold alerts** — Configurable pressure and temperature alert levels
-- **Session history** — Trends and diagnostics stored to Supabase
-- **Authentication** — Secure login and registration via Supabase Auth
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Language | Kotlin |
-| UI | Jetpack Compose with OOUX ORCA|
-| Architecture | Clean Architecture (Presentation → Domain → Data) |
-| DI | Hilt |
-| BLE | Android BLE API (GATT) |
-| Backend | Supabase (Auth + Database) |
-| State | StateFlow / SharedFlow |
-| Build | Gradle (KTS) |
+- **Real-time dual-insole BLE streaming** — Independent Left & Right GATT connections (`InsoleBleManager`) with 5 Hz stream + 1/min `T,` temperature heartbeat support
+- **5-zone plantar pressure heatmap** — Anatomical mapping (`HALLUX`, `MTH1`, `MTH2`, `MTH4`, `HEEL`) rendered via `MapPressureToGridUseCase` and radial-gradient `PlantarPressureCard`
+- **Bilateral temperature & wear-gating** — `WearGating` filters off-shoe ambient readings and `-999` fault sentinels; `ClinicalScoringVariables` tracks 2-day consecutive hotspots (`ΔT >= 2.2 °C`)
+- **IMU + FSR step & gait FSM** — `WalkingFSM` fuses swing-phase unweighting (`< 40 kPa`) and stance touchdown (`>= 60 kPa`) with IMU motion energy
+- **Versioned clinical rules & empathetic UX** — `PromptRuleEngine` + `ThresholdsConfig` (allometric body-weight scaling, persistence gates, and cooldowns)
+- **Offline-first persistence & idempotent sync** — Room Database (with non-destructive migrations), clinical export (`DataExportManager`), diagnostics & scenario seeding (`ClinicalScenarioSeeder`), and Go cloud batch sync (`SyncCloudDataUseCase`)
 
 ---
 
-## Architecture
+## Repository Structure
 
-```
-app/
-├── core/
-│   ├── ble/                  # BLE manager, connection, data packet models
-│   └── di/                   # Hilt modules
-└── features/
-    ├── auth/                 # Login, register
-    │   ├── data/
-    │   ├── domain/
-    │   └── presentation/
-    ├── sensor/               # Live BLE sensor monitoring
-    │   ├── data/
-    │   ├── domain/           # Use cases, models (pure Kotlin)
-    │   └── presentation/
-    ├── tracking/             # Dashboard & step tracking
-    ├── trends/               # Historical data & charts
-    ├── diagnostics/          # Foot health diagnostics
-    ├── notifications/        # Alert management
-    └── settings/             # App configuration
-```
-
-Each feature follows the same three-layer pattern: `data` (repositories, data sources) → `domain` (use cases, models) → `presentation` (ViewModel, Compose screens).
-
----
-
-## Hardware
-
-The insole hardware consists of:
-
-- **ESP32-C3** microcontroller
-- **MPU-6050** IMU (accelerometer + gyroscope) for step detection
-- **FSR (Force Sensitive Resistor)** for plantar pressure
-- **NTC thermistor** for skin temperature
-
-The firmware sends comma-delimited BLE notifications at 5 Hz:
-
-```
-ax,ay,az,gx,gy,gz,pressure,temperature
-```
-
-Example: `0.1,-9.8,0.3,0.0,0.0,0.1,127.0,34.2`
-
-**Units:** the app normalizes whatever units the firmware sends into canonical
-internal units (accel in g, gyro in deg/s) via `SensorUnitsProfile`
-(`features/sensor/domain/model/SensorUnitsProfile.kt`). The accel scale is
-auto-detected at session start from the first packets; a firmware unit change
-only requires switching the profile enum — FSM thresholds and UI never change.
-
-Two devices are used — one per foot — each advertising a unique BLE service UUID.
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Android Studio Hedgehog or later
-- Android device with BLE support (API 26+)
-- Supabase project (for auth and data storage)
-
-### Setup
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/rezahanif/capstonediabfoot.git
-   ```
-
-2. Open in Android Studio and let Gradle sync.
-
-3. Create a `local.properties` file in the project root and add your SDK path:
-   ```
-   sdk.dir=/path/to/your/Android/sdk
-   ```
-
-4. Add your Supabase credentials in the appropriate config file (see `core/di/AppModule.kt`).
-
-5. Build and run on a physical device (BLE does not work on emulator).
-
-### Permissions Required
-
-```xml
-BLUETOOTH_SCAN
-BLUETOOTH_CONNECT
-ACCESS_FINE_LOCATION
-INTERNET
+```text
+capstonediabfoot/
+├── app/                   # Android patient app (Kotlin, Jetpack Compose, Hilt, Room)
+│   └── src/test/          # 21 unit test suites (140 tests)
+├── firmware/              # ESP32-C3 Arduino sketches, BLE specs & calibration benches
+├── cloud/                 # Self-hosted Go REST API (server/), schema.sql, DATA_CONTRACT.md
+├── checklist/             # 12 hardware/firmware/system verification suites (TEST-01..12) + Master PDF
+├── docs/                  # Architecture plans, TECH_DEBT.md, UX-BRAND-SPEC.md, report/ & CONTRIBUTION_SUMMARY.md
+├── results/               # Gait trials & raw sensor CSV logs (results/raw_logs/)
+└── scripts/               # Python BLE/USB loggers, calibration & simulator utilities
 ```
 
 ---
 
-## BLE UUIDs
+## BLE Telemetry Contract (v2 & Legacy v1)
 
-| Device | Service UUID |
-|---|---|
-| Left insole | `4fa2c732-ca9a-4c20-9492-c167df3c942b` |
-| Right insole | `4fa2c732-ca9a-4c20-9492-c167df3c942c` |
+`SensorPacketParser` auto-detects three line formats on the GATT notify characteristic:
 
-Characteristic UUID (both): `beb5483e-36e1-4688-b7f5-ea07361b26c9`
+| Format | Payload | Cadence |
+|---|---|---|
+| **v2 Stream** | `ax,ay,az,gx,gy,gz,p1,p2,p3,p4,p5` | 5 Hz (200 ms) |
+| **v2 Slow Heartbeat** | `T,<tempC>[,<batPct>]` | 1/min (60 s) |
+| **Legacy v1** | `ax,ay,az,gx,gy,gz,pressure,temperature` | 5 Hz |
+
+- Accelerometer & gyroscope units (`m/s²` & `rad/s` from Adafruit MPU-6050) are normalized to `g` and `deg/s` via `SensorUnitsProfile` / `SensorUnitDetector`.
+
+### BLE UUIDs
+
+| Device | Service UUID | Characteristic UUID |
+|---|---|---|
+| **Left insole** (`Smart_Insole_Left`) | `4fa2c732-ca9a-4c20-9492-c167df3c942b` | `beb5483e-36e1-4688-b7f5-ea07361b26a8` |
+| **Right insole** (`Smart_Insole_Right`) | `4fa2c732-ca9a-4c20-9492-c167df3c942c` | `beb5483e-36e1-4688-b7f5-ea07361b26c9` |
 
 ---
 
-## Project Status
+## Build & Test
 
-This is a capstone project currently in active development.
+### Android App (requires JDK 17)
+```bash
+./gradlew assembleDebug          # Build debug APK
+./gradlew testDebugUnitTest      # Run all 21 unit test suites (140 tests)
+./gradlew lint                   # Android lint
+```
+Create `local.properties` in the root with `sdk.dir=/path/to/Android/sdk`. Configure the API URL via `-Pdiabfoot.apiBaseUrl=...`, `DIABFOOT_API_BASE_URL`, or `local.properties` (defaults and ADB reverse fallback live in `core/network/ApiConfig.kt`).
 
-- [x] BLE dual-device connection & streaming
-- [x] Live pressure and temperature display
-- [x] Step counting with walking FSM
-- [x] Authentication (login / register)
-- [ ] Supabase data persistence (in progress)
-- [ ] Historical trends charts (in progress)
-- [ ] Diagnostic report generation
+### Cloud Server (Go + PostgreSQL)
+```bash
+cd cloud/server
+cp .env.example .env             # Set DATABASE_URL, JWT_SECRET, GOOGLE_CLIENT_ID
+psql "$DATABASE_URL" -f ../schema.sql
+go run .                         # Listens on :8080
+```
+
+---
+
+## Verification & Documentation
+
+- **Contribution breakdown & evidence index:** [`docs/CONTRIBUTION_SUMMARY.md`](docs/CONTRIBUTION_SUMMARY.md)
+- **Hardware & BLE verification suite (`TEST-01`..`TEST-12`):** [`checklist/README.md`](checklist/README.md)
+- **Technical debt & design decisions:** [`docs/TECH_DEBT.md`](docs/TECH_DEBT.md)
+- **Patient UX rules:** [`docs/design/UX-BRAND-SPEC.md`](docs/design/UX-BRAND-SPEC.md)
+- **Cloud payload specification:** [`cloud/DATA_CONTRACT.md`](cloud/DATA_CONTRACT.md)
 
 ---
 
 ## License
 
-This project is for academic/capstone purposes.
+This project is developed for academic/capstone purposes.

@@ -1,0 +1,216 @@
+\section{Peran dan Pembagian Tugas dalam Tim}
+\label{sec:peran_tugas}
+
+Pengembangan sistem DiabFoot Guard dilaksanakan secara kolaboratif oleh tim beranggotakan empat orang mahasiswa dengan pembagian domain kerja yang saling melengkapi untuk mewujudkan sistem pemantauan dini risiko \textit{Diabetic Foot Ulcer} (DFU) secara menyeluruh. Sebagai dasar penilaian individual pengganti skripsi pada dokumen C-601, seluruh uraian dalam bab ini difokuskan pada tanggung jawab teknis yang dikerjakan secara mandiri oleh penulis (meliputi subsistem perangkat lunak terdistribusi, manajemen alokasi komputasi tiga lapis \textit{edge--mobile--cloud}, serta perancangan antarmuka pasien dan tenaga medis), dengan setiap klaim kontribusi pada Subbab~\ref{sec:kontribusi_tahapan} ditautkan langsung ke artefak bukti pengerjaan pada Subbab~\ref{sec:bukti_kontribusi}.
+
+Secara rinci, pembagian peran dan tanggung jawab masing-masing anggota dalam tim pengembangan adalah sebagai berikut:
+
+\begin{enumerate}
+    \item \textbf{Anggota 1 -- Subsistem Perangkat Keras (\textit{Hardware Engineering}):} Bertanggung jawab atas perancangan skematik rangkaian elektronika, integrasi mikrokontroler ESP32-C3 dengan sensor tekanan \textit{Force Sensitive Resistor} (FSR), termistor NTC melalui konverter analog-ke-digital (ADC) eksternal ADS1115, unit pengukuran inersia (IMU) MPU-6050, serta manajemen catu daya baterai LiPo.
+    \item \textbf{Anggota 2 -- Subsistem Algoritma Klinis dan Perakitan (\textit{Clinical Algorithm Design and Mechanical Assembly}):} Bertanggung jawab atas kajian literatur medis berbasis panduan \textit{International Working Group on the Diabetic Foot} (IWGDF), formulasi matematis konversi besaran fisis sensor, penetapan model penilaian risiko berbasis asimetri suhu bilateral dan parameter beban plantar, serta perakitan fisik purwarupa.
+    \item \textbf{Anggota 3 -- Pemodelan Fisik dan Algoritma Pemfilteran (\textit{Physical Modeling and Filtering Algorithm}):} Bertanggung jawab atas perancangan struktur fisik 3D \textit{smart insole}, pemilihan material lapisan ergonomis (\textit{EVA foam} dan kain medis \textit{breathable}), pemetaan titik anatomis penempatan sensor, serta perancangan algoritma pemfilteran sinyal sensor untuk meredam derau pengukuran.
+    \item \textbf{Penulis (Reza Hanif Firmansyah) -- Subsistem Aplikasi, Infrastruktur Cloud, dan Manajemen Komputasi (\textit{Firmware, Full-Stack Application, and Compute Architecture Lead}):} Bertanggung jawab atas keseluruhan lapisan perangkat lunak, komunikasi lintas perangkat, dan strategi distribusi beban komputasi sistem.
+\end{enumerate}
+
+Pada awal pembentukan tim, pembagian kerja dilakukan melalui kesepakatan bersama berdasarkan kompetensi teknis masing-masing anggota. Peran penulis tidak dibatasi oleh satu label jabatan tunggal yang kaku, melainkan ditetapkan secara eksplisit melalui cakupan tanggung jawab fungsional yang mencakup empat pilar utama: (a) penulisan \textit{firmware} mikrokontroler ESP32-C3 (berkas \texttt{.ino} berbasis C/C++) untuk pengaturan frekuensi akuisisi, penghematan daya baterai, dan pembentukan kontrak paket data menuju ponsel; (b) pengembangan aplikasi \textit{mobile} pasien berbasis Android (Kotlin) dengan fokus pada perancangan pengalaman pengguna (UI/UX) yang empatik dan tidak memicu kecemasan pasien; (c) pengembangan aplikasi web \textit{dashboard} dokter berbasis Vue 3 + Vite + TypeScript (pada repositori pendamping \texttt{diabfoot-webapp-for-doctor}) untuk pemantauan klinis kuantitatif; serta (d) perancangan dan pengelolaan layanan REST API berbasis bahasa Go (\texttt{cloud/server/}) dan skema basis data PostgreSQL (\texttt{cloud/schema.sql}) pada \textit{homeserver} berbasis Docker.
+
+Selama proyek berjalan, terjadi penyesuaian arsitektural yang penting pada tanggung jawab pengelolaan \textit{backend} dan komputasi. Pada rancangan awal dokumen C-501, lapisan \textit{cloud} direncanakan menggunakan layanan terkelola Supabase serta \textit{message broker} MQTT dan Redis. Namun, melalui evaluasi teknis dan kesepakatan bersama tim, arsitektur tersebut diubah menjadi infrastruktur mandiri (\textit{self-hosted}) berbasis kontainer Docker pada \textit{homeserver} menggunakan basis data PostgreSQL mandiri, Go REST API, dan layanan autentikasi terpadu berbasis \textit{JSON Web Token} (JWT) yang digunakan bersama oleh aplikasi Android dan aplikasi web dokter, tanpa menggunakan Supabase maupun Redis. Selain itu, evaluasi deteksi risiko \textit{real-time} dipusatkan pada perangkat Android pasien dengan persistensi luring (\textit{offline-first}) pada Room DB dan mekanisme sinkronisasi batch harian idempoten (\texttt{SyncCloudDataUseCase.kt}) ke \textit{cloud} untuk meminimalkan beban peladen dan menjaga kedaulatan pemrosesan klinis di perangkat pasien.
+
+\section{Kontribusi Substantif per Tahapan Proyek}
+\label{sec:kontribusi_tahapan}
+
+Kontribusi individual penulis dipetakan secara sistematis mengikuti tahapan pengembangan dan pengujian sistem yang telah dilaporkan pada Bab 4 (Detail Implementasi) dan Subbab 5.1 (Pengujian dan Pembahasan) dokumen C-501.
+
+\subsection{Kontribusi pada Tahap Perancangan Arsitektur dan Partisi Komputasi Tiga Lapis}
+\label{subsec:kontribusi_tahap1}
+
+Pada tahap perencanaan teknis dan perancangan arsitektur sistem (berkaitan dengan Subbab 4.1 hingga 4.4 pada C-501), penulis melakukan analisis pembagian beban komputasi (\textit{compute partitioning}) di antara tiga lapisan perangkat keras dengan kapabilitas pemrosesan dan batasan daya yang berbeda, yakni mikrokontroler \textit{edge} (ESP32-C3), perangkat bergerak pasien (\textit{smartphone} Android), dan \textit{server cloud}.
+
+\begin{itemize}
+    \item \textbf{Pekerjaan Spesifik:} Penulis mengevaluasi keterbatasan sumber daya ESP32-C3 (\textit{single-core} RISC-V, SRAM 520 KB, dan kapasitas baterai LiPo 300 mAh) untuk menentukan operasi apa saja yang layak dijalankan pada perangkat \textit{edge} dan operasi apa yang harus dialihkan ke perangkat Android maupun \textit{server}. Penulis menetapkan bahwa perangkat \textit{edge} difokuskan pada akuisisi sinyal terkalibrasi dan pengiriman paket telemetri berfrekuensi rendah (5 Hz) melalui \textit{Bluetooth Low Energy} (BLE), sementara rekonstruksi fase jalan (\textit{gait} pada \texttt{WalkingFSM.kt}), pemfilteran kondisi pemakaian (\textit{wear-gating} pada \texttt{WearGating.kt}), kalkulasi skor risiko multi-hari (\texttt{ClinicalScoringVariables.kt}), dan pembangkitan pesan empatik dijalankan sepenuhnya secara lokal pada perangkat Android. Lapisan \textit{cloud} dialokasikan sebagai penyimpanan pasif (\textit{dumb store}) untuk autentikasi pengguna terpadu, penyimpanan riwayat jangka panjang berbasis \texttt{JSONB}, dan penyajian data mentah terstruktur bagi aplikasi web dokter.
+    \item \textbf{Keluaran Konkret:} Dokumen spesifikasi kontrak protokol komunikasi BLE berbasis string CSV, diagram alur komunikasi tiga lapis (Gambar 4.10 dan 4.11 pada C-501), serta rancangan skema basis data relasional PostgreSQL untuk entitas pasien, sesi pemantauan, metrik biomekanik, dan log peringatan.
+    \item \textbf{Keterkaitan dengan Anggota Tim Lain:} Spesifikasi kontrak data yang disusun penulis menjadi antarmuka baku antara anggota tim perangkat keras (yang menyediakan jalur sinyal sensor) dan anggota tim algoritma (yang merumuskan persamaan konversi satuan dan ambang batas klinis).
+\end{itemize}
+
+\subsection{Kontribusi pada Tahap Implementasi Firmware Edge ESP32-C3}
+\label{subsec:kontribusi_tahap2}
+
+Pada tahap implementasi perangkat lunak tertanam (berkaitan dengan Subbab 4.6 dan 4.8.1 pada C-501), penulis menulis kode \textit{firmware} utama mikrokontroler dalam format berkas \texttt{.ino} (C++) untuk unit \textit{insole} kiri dan kanan.
+
+\begin{itemize}
+    \item \textbf{Pekerjaan Spesifik:} Penulis mengimplementasikan rutin pembacaan sensor tekanan FSR, sensor suhu NTC pada saluran ADC eksternal ADS1115, serta data akselerometer dan giroskop MPU-6050 melalui antarmuka $\text{I}^2\text{C}$. Penulis, dengan kesepakatan bersama, merancang pengaturan frekuensi pengiriman paket BLE GATT \textit{Notify} pada laju tetap \textbf{5 Hz} ($\Delta t \approx 200\text{ ms}$) untuk menekan konsumsi daya pemancar radio 2,4 GHz agar selaras dengan target durasi operasi baterai LiPo 300 mAh. Penulis juga mengimplementasikan pemformatan paket kontrak data string CSV terstruktur (mencakup \textit{timestamp}, data IMU 6 sumbu, 5 kanal tekanan FSR, dan suhu NTC) sehingga setiap paket berukuran di bawah batas MTU BLE 5.0 tanpa fragmentasi.
+    \item \textbf{Keluaran Konkret:} Kode sumber \textit{firmware} \texttt{.ino} untuk kedua unit ESP32-C3 (\textit{Left Insole} dan \textit{Right Insole}) beserta layanan karakteristik GATT BLE yang siap dipindai dan dipasangkan oleh aplikasi Android.
+    \item \textbf{Keterkaitan dengan Anggota Tim Lain:} Mengintegrasikan tabel kalibrasi sensor dan konstanta persamaan Steinhart-Hart yang dirumuskan oleh anggota tim algoritma ke dalam kode C++ yang berjalan stabil pada ESP32 C3 yang berada papan rangkaian buatan anggota tim perangkat keras.
+\end{itemize}
+
+\subsection{Kontribusi pada Tahap Implementasi Aplikasi Mobile Pasien (Kotlin) dan UI/UX Empatik}
+\label{subsec:kontribusi_tahap3}
+
+Pada tahap pengembangan aplikasi bergerak (berkaitan dengan Subbab 4.8.2 dan 4.9 pada C-501), penulis merancang antarmuka pengguna sekaligus membangun aplikasi Android secara penuh menggunakan bahasa pemrograman Kotlin.
+
+\begin{itemize}
+    \item \textbf{Pekerjaan Spesifik:}
+    \begin{enumerate}
+        \item \textit{Perancangan Antarmuka Empatik (Non-Alarmist UI/UX):} Penulis merancang purwarupa visual di Figma dan mengimplementasikannya pada Android dengan pendekatan psikologis yang menenangkan pasien diabetes. Setiap notifikasi dan kartu status dirancang melalui modul mesin aturan (\texttt{PromptRuleEngine.kt}) menggunakan kalimat pengingat yang suportif dan konstruktif (misalnya menyarankan istirahat sejenak atau memeriksa kondisi telapak kaki) alih-alih menggunakan bahasa medis yang menghakimi atau menakut-nakuti, sehingga mencegah kecemasan berlebih (\textit{health anxiety}) maupun kelelahan peringatan (\textit{alert fatigue}).
+        \item \textit{Pipa Pemrosesan Telemetri dan FSM Multi-Sensor:} Penulis membangun pipa penerimaan BLE reaktif berbasis Kotlin \texttt{SharedFlow} (\texttt{InsoleBleManager.kt}) bersama modul \texttt{SensorPacketParser} untuk menerima, memvalidasi, dan menyinkronkan aliran data BLE 5 Hz dari kedua kaki secara simultan, serta mengimplementasikan \textit{Finite State Machine} penghitung langkah dan fase jalan dengan fusi IMU--FSR (\texttt{WalkingFSM.kt}).
+        \item \textit{Evaluasi Risiko Klinis dan Persistensi Offline:} Penulis mengimplementasikan modul \texttt{ClinicalScoringVariables.kt} untuk menghitung asimetri suhu bilateral ($\Delta T \ge 2{,}2\,^\circ\mathrm{C}$ selama dua hari berturut-turut), penskalaan alometrik ambang tekanan berdasarkan berat badan pasien (\texttt{ThresholdsConfig.kt}), pemetaan grid zona anatomis 5$\times$10 dan visualisasi \textit{heatmap} gradien radial berbasis \textit{Canvas} (\texttt{MapPressureToGridUseCase.kt} dan \texttt{PlantarPressureCard.kt}), penyimpanan lokal berbasis \texttt{Room Database} untuk mode luring (\textit{offline}), serta sinkronisasi batch harian idempoten ke \textit{server cloud} melalui \texttt{SyncCloudDataUseCase.kt} dan ekspor laporan (\texttt{DataExportManager.kt}).
+    \end{enumerate}
+    \item \textbf{Keluaran Konkret:} Purwarupa desain UI/UX interaktif pada Figma serta repositori aplikasi Android Kotlin lengkap (\texttt{InsoleBleManager.kt}, \texttt{SensorPacketParser.kt}, \texttt{WalkingFSM.kt}, \texttt{WearGating.kt}, \texttt{ClinicalScoringVariables.kt}, \texttt{PromptRuleEngine.kt}, \texttt{ThresholdsConfig.kt}, dan lapisan basis data lokal \texttt{Room DB}).
+    \item \textbf{Keterkaitan dengan Anggota Tim Lain:} Menyediakan visualisasi waktu nyata (\textit{real-time}) yang digunakan oleh seluruh anggota tim saat melakukan uji coba pemakaian purwarupa fisik \textit{insole} rakitan anggota tim pemodelan.
+\end{itemize}
+
+\subsection{Kontribusi pada Tahap Implementasi Cloud Backend, Autentikasi Terpadu, dan Web Dashboard Dokter}
+\label{subsec:kontribusi_tahap4}
+
+Pada tahap pengembangan infrastruktur sisi peladen dan antarmuka klinis (berkaitan dengan Subbab 4.10 pada C-501), penulis membangun ekosistem \textit{backend} dan aplikasi web secara mandiri.
+
+\begin{itemize}
+    \item \textbf{Pekerjaan Spesifik:}
+    \begin{enumerate}
+        \item \textit{Layanan Go Backend dan Autentikasi JWT Terpadu via Docker:} Penulis merancang dan men-\textit{deploy} layanan REST API berbasis bahasa \textbf{Go} (\texttt{cloud/server/}) dan basis data relasional \textbf{PostgreSQL} mandiri (\texttt{cloud/schema.sql}) di dalam kontainer Docker pada \textit{homeserver}. Penulis membangun layanan autentikasi bersama berbasis token JWT (\textit{JSON Web Token}) yang mendukung verifikasi Google ID-Token maupun kredensial email/kata sandi dengan kontrol akses berbasis peran (\texttt{patient} dan \texttt{doctor}) serta log audit akses (\texttt{audit\_log}).
+        \item \textit{Aplikasi Web Dashboard Dokter Berbasis Vue 3 + Vite:} Penulis mengembangkan antarmuka web klinis pada repositori pendamping (\texttt{diabfoot-webapp-for-doctor}) menggunakan kerangka kerja \textbf{Vue 3, Vite, dan TypeScript} untuk kebutuhan evaluasi cepat tenaga medis. Antarmuka web melakukan derivasi klinis sisi klien atas batch \texttt{DATA\_CONTRACT.md} v1.0, mencakup grafik tren asimetri suhu bilateral harian ($\Delta T = T_{\text{kiri}} - T_{\text{kanan}}$), durasi persistensi harian di atas ambang ($\ge 2{,}2\,^\circ\mathrm{C}$), peta lokasi tekanan plantar tinggi per zona anatomis (\texttt{HALLUX}, \texttt{MTH1}, \texttt{MTH2}, \texttt{MTH4}, \texttt{HEEL}), deteksi tren kenaikan asimetri tiga hari, serta daftar triase pasien.
+    \end{enumerate}
+    \item \textbf{Keluaran Konkret:} Layanan Go REST API dan autentikasi JWT terpadu (\texttt{cloud/server/}), skema basis data PostgreSQL mandiri (\texttt{cloud/schema.sql}), spesifikasi kontrak data (\texttt{cloud/DATA\_CONTRACT.md}), konfigurasi kontainer Docker pada \textit{homeserver}, serta aplikasi web \textit{dashboard} dokter berbasis Vue 3 + Vite (\texttt{diabfoot-webapp-for-doctor}).
+    \item \textbf{Keterkaitan dengan Anggota Tim Lain:} Menutup siklus pemantauan ujung-ke-ujung (\textit{end-to-end}) sehingga data hasil akuisisi perangkat keras dan pemrosesan algoritma dapat diaudit secara longitudinal oleh tenaga medis.
+\end{itemize}
+
+\subsection{Kontribusi pada Tahap Pengujian dan Verifikasi Subsistem}
+\label{subsec:kontribusi_tahap5}
+
+Pada tahap pengujian sistem (berkaitan dengan Subbab 5.1 pada C-501), penulis menyusun dan mengeksekusi skenario pengujian untuk memverifikasi keandalan komunikasi nirkabel, stabilitas perangkat lunak, efisiensi konsumsi daya, serta ketepatan logika klasifikasi risiko.
+
+\begin{itemize}
+    \item \textbf{Pekerjaan Spesifik:} Penulis merancang matriks pengujian subsistem perangkat lunak dan komunikasi (\texttt{UJI-04} hingga \texttt{UJI-12} pada Tabel 5.1 C-501), meliputi pengukuran tingkat kehilangan paket (\textit{packet loss}) dan latensi pipa pemrosesan internal aplikasi Android (\texttt{SharedFlow}), uji kestabilan operasi kontinu (\textit{stress bench}) untuk memastikan ketiadaan \textit{crash} maupun kebocoran memori (\textit{memory leak}), karakterisasi durasi operasi baterai pada laju transmisi 5 Hz, serta pengujian unit deterministik (\textit{Software-in-the-Loop}) sebanyak 21 suite uji (140 kasus uji pada \texttt{app/src/test}), termasuk \texttt{ClinicalRiskScoringTest.kt}, \texttt{PromptRuleEngineTest.kt}, \texttt{WalkingFSMTest.kt}, \texttt{SensorPacketParserTest.kt}, \texttt{WearGatingTest.kt}, dan penyemai skenario multi-hari \texttt{ClinicalScenarioSeeder.kt}.
+    \item \textbf{Keluaran Konkret:} Kode pengujian unit otomatis pada Android Studio/Gradle (\texttt{./gradlew testDebugUnitTest}), laporan verifikasi perangkat keras/BLE (\texttt{checklist/test\_01}--\texttt{test\_12}), log pemrosesan \texttt{Room DB}, serta log sinkronisasi transaksi pada basis data PostgreSQL.
+    \item \textbf{Keterkaitan dengan Anggota Tim Lain:} Memberikan umpan balik kuantitatif mengenai kestabilan pengiriman paket dari \textit{firmware} ESP32-C3 dan membantu tim memvalidasi keluaran akhir algoritma skor risiko sebelum pengujian terpadu.
+\end{itemize}
+
+Tabel~\ref{tab:ringkasan_kontribusi} merangkum pemetaan keseluruhan kontribusi individual penulis di setiap lapisan arsitektur sistem DiabFoot Guard.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Ringkasan Pemetaan Kontribusi Individual per Lapisan Arsitektur Sistem}
+    \label{tab:ringkasan_kontribusi}
+    \small
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{|>{\bfseries}p{2.8cm}|p{3.6cm}|p{8.2cm}|}
+        \hline
+        \textbf{Lapisan Sistem} & \textbf{Teknologi Utama} & \textbf{Kontribusi Individual dan Keluaran} \\ \hline
+        Edge Layer & ESP32-C3, C/C++ (\texttt{.ino}), BLE 5.0 GATT & Penulisan \textit{firmware} akuisisi sensor, pengaturan laju transmisi BLE 5\,Hz untuk efisiensi baterai, manajemen eksekusi \textit{single-core}, LUT kalibrasi FSR 11-titik, dan kontrak format paket data CSV. \\ \hline
+        Mobile Layer & Android Kotlin, Clean Architecture + MVVM, \texttt{SharedFlow}, \texttt{Room DB}, Figma & Perancangan UI/UX empatik anti-kecemasan, pipa parsing telemetri (\texttt{SensorPacketParser}), \texttt{WalkingFSM.kt}, \textit{wear-gating} (\texttt{WearGating.kt}), penskalaan alometrik berat badan (\texttt{ThresholdsConfig.kt}), \texttt{PromptRuleEngine.kt}, penyimpanan luring, dan sinkronisasi batch ke \textit{cloud} (\texttt{SyncCloudDataUseCase.kt}). \\ \hline
+        Cloud \& Auth Middleware & Go, Docker, PostgreSQL, REST API, JWT & \textit{Deployment} mandiri pada \textit{homeserver}, layanan Go REST API (\texttt{cloud/server/}), autentikasi JWT bersama untuk aplikasi Android dan web dokter, serta skema PostgreSQL (\texttt{cloud/schema.sql}) tanpa Supabase/Redis. \\ \hline
+        Clinician Web Layer & Vue 3, Vite, TypeScript, ECharts, REST Client & Pengembangan \textit{dashboard} dokter (\texttt{diabfoot-webapp-for-doctor}) untuk pemantauan data numerik klinis (asimetri $\Delta T$ bilateral harian, durasi persistensi, lokasi zona tekanan plantar tinggi, tren 3 hari, dan triase pasien). \\ \hline
+    \end{tabular}%
+    }
+\end{table}
+
+\section{Artefak dan Bukti Kontribusi}
+\label{sec:bukti_kontribusi}
+
+Untuk memenuhi ketentuan verifikasi keaslian pengerjaan individual, bagian ini menyajikan artefak bukti kontribusi yang memuat identitas kepenulisan secara eksplisit (akun GitHub \texttt{rezahanif}, metadata perancang pada Figma, log pengujian Android Studio, catatan progres pengembangan lokal dengan penanda waktu, serta log kontainer Docker dan PostgreSQL). Setiap artefak ditautkan secara langsung ke subbab kontribusi pada Subbab~\ref{sec:kontribusi_tahapan}.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{artefak_7_1_github.png}
+    \caption{Bukti riwayat \textit{commit} kode sumber pada repositori GitHub dengan identitas akun \texttt{rezahanif} (Memperkuat Subbab~\ref{subsec:kontribusi_tahap2}, \ref{subsec:kontribusi_tahap3}, dan \ref{subsec:kontribusi_tahap4}).}
+    \label{fig:bukti_github}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{artefak_7_2_figma.png}
+    \caption{Bukti perancangan antarmuka pasien dan \textit{dashboard} pada Figma beserta metadata pemilik berkas (Memperkuat Subbab~\ref{subsec:kontribusi_tahap1} dan \ref{subsec:kontribusi_tahap3}).}
+    \label{fig:bukti_figma}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{artefak_7_3_changelog.png}
+    \caption{Bukti log pelacakan tugas dan progres pengembangan individual pada catatan lokal terstruktur (Memperkuat Subbab~\ref{subsec:kontribusi_tahap1} hingga \ref{subsec:kontribusi_tahap5}).}
+    \label{fig:bukti_catatan_lokal}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{artefak_7_4_android_test.png}
+    \caption{Bukti eksekusi dan kelulusan pengujian unit deterministik pada Android Studio (Memperkuat Subbab~\ref{subsec:kontribusi_tahap3} dan \ref{subsec:kontribusi_tahap5}).}
+    \label{fig:bukti_android_test}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{artefak_7_5_docker_postgres.png}
+    \caption{Bukti operasional layanan kontainer Docker, autentikasi JWT terpadu, dan basis data PostgreSQL mandiri (Memperkuat Subbab~\ref{subsec:kontribusi_tahap4} dan \ref{subsec:kontribusi_tahap5}).}
+    \label{fig:bukti_postgres_docker}
+\end{figure}
+
+\section{Tantangan Individu dan Penyelesaiannya}
+\label{sec:tantangan_individu}
+
+Selama merancang dan mengimplementasikan subsistem perangkat lunak serta arsitektur pemrosesan data, penulis menghadapi empat tantangan teknis spesifik yang harus diselesaikan secara mandiri.
+
+\subsection{Penentuan Frekuensi Pencuplikan dan Transmisi BLE untuk Meminimalkan Ukuran Baterai}
+
+\begin{itemize}
+    \item \textbf{Uraian Masalah dan Konteks:} Faktor bentuk perangkat \textit{smart insole} membatasi ruang fisik modul elektronik pada sisi sepatu sehingga kapasitas baterai yang dapat digunakan hanya sebesar 300 mAh. Pada rancangan awal, transmisi data sensor secara terus-menerus pada laju tinggi (20 Hz hingga 50 Hz) menyebabkan pemancar radio BLE ESP32-C3 berada dalam kondisi aktif hampir sepanjang waktu, sehingga konsumsi arus rata-rata membengkak dan mengancam target durasi pemakaian harian.
+    \item \textbf{Dampak terhadap Pekerjaan:} Tanpa penyesuaian laju pengiriman data, prototipe memerlukan baterai berkapasitas besar yang terlalu tebal dan tidak nyaman dipakai oleh pasien.
+    \item \textbf{Langkah Penyelesaian dan Alternatif:} Penulis mempertimbangkan alternatif penyimpanan \textit{buffer} paket pada memori Flash internal ESP32-C3 untuk dikirim secara berkala (\textit{burst}), namun pendekatan ini meningkatkan kompleksitas manajemen memori pada RAM 520 KB dan berisiko menghilangkan data jika daya terputus mendadak. Sebagai solusi, penulis menurunkan dan menstabilkan laju pengiriman BLE GATT \textit{Notify} pada frekuensi \textbf{5 Hz} ($\Delta t \approx 200\,\mathrm{ms}$) dengan struktur paket string CSV yang ringkas, sekaligus mengalihkan komputasi agregasi langkah dan analisis tren ke perangkat Android.
+    \item \textbf{Hasil dan Pembelajaran:} Transmisi BLE 5 Hz berhasil menjaga integritas pengiriman parameter klinis utama (terutama suhu jaringan yang memiliki konstanta waktu perubahan lambat dan ringkasan beban kaki) sekaligus menekan beban radio pada perangkat \textit{edge}.
+\end{itemize}
+
+\subsection{Manajemen Eksekusi Utas Pemrosesan pada Arsitektur Single-Core ESP32-C3}
+
+\begin{itemize}
+    \item \textbf{Uraian Masalah dan Konteks:} Mikrokontroler ESP32-C3 hanya memiliki satu inti pemroses (\textit{single-core}). Dalam satu siklus operasional, mikrokontroler harus menangani pembacaan lima saluran analog FSR, komunikasi $\text{I}^2\text{C}$ untuk membaca suhu NTC melalui ADS1115 dan data inersia MPU-6050, serta melayani interupsi protokol BLE secara bersamaan. Penggunaan fungsi tunda sinkron (\texttt{delay()}) pada sketsa \texttt{.ino} memicu kemacetan eksekusi (\textit{thread starvation}) yang menyebabkan paket BLE terlambat dikirim atau koneksi terputus secara tiba-tiba.
+    \item \textbf{Dampak terhadap Pekerjaan:} Ketidakstabilan penjadwalan eksekusi menghasilkan variasi jeda kedatangan paket (\textit{jitter}) pada sisi penerima Android sehingga mengganggu sinkronisasi perbandingan suhu antara kaki kiri dan kaki kanan.
+    \item \textbf{Langkah Penyelesaian dan Alternatif:} Penulis mempertimbangkan pembuatan tugas ganda berbasis FreeRTOS dengan prioritas terpisah, namun alokasi tumpukan memori (\textit{stack size}) tambahan mempersempit ruang RAM untuk tumpukan protokol BLE. Penulis kemudian merancang penjadwalan deterministik berbasis pewaktu non-blokir (\texttt{millis()}) di dalam berkas \texttt{.ino} yang memisahkan interval pencuplikan sensor dari jendela waktu pembentukan paket dan pemanggilan \texttt{notify()} setiap 200 ms.
+    \item \textbf{Hasil dan Pembelajaran:} Eksekusi siklus akuisisi dan transmisi berjalan stabil tanpa memicu \textit{watchdog timer reset}, sehingga aliran paket masuk ke pipa \texttt{SensorPacketParser} Android tetap teratur.
+\end{itemize}
+
+\subsection{Perancangan Wear-Gating dan Penskalaan Alometrik Ambang Tekanan Berbasis Berat Badan}
+
+\begin{itemize}
+    \item \textbf{Uraian Masalah dan Konteks:} Setiap pasien memiliki massa tubuh yang berbeda, sedangkan data sensor mentah juga berisiko tercampur oleh kondisi sepatu tidak terpakai (suhu ruang atau pin ADC mengambang). Penggunaan satu nilai ambang batas tekanan statis ($P_{\text{nominal}} = 2000\,\mathrm{kPa}$ pada referensi $60\,\mathrm{kg}$ di \texttt{SensorConstants.kt}) secara seragam untuk seluruh pengguna berpotensi menghasilkan bias deteksi: pasien dengan berat badan lebih tinggi akan lebih sering melampaui ambang batas meskipun pola jalannya normal, sedangkan pasien bertubuh ringan berisiko tidak terdeteksi ketika mengalami konsentrasi tekanan lokal.
+    \item \textbf{Dampak terhadap Pekerjaan:} Tanpa verifikasi pemakaian aktif dan penyesuaian profil berat badan pengguna, rekomendasi peringatan pada aplikasi menjadi kurang akurat dan berisiko memicu peringatan yang tidak relevan.
+    \item \textbf{Langkah Penyelesaian dan Alternatif:} Penulis memisahkan tanggung jawab menjadi dua lapisan domain yang saling melengkapi. Pertama, modul \texttt{WearGating.kt} memfilter data pemakaian bersih (\textit{clean on-body wear}) berdasarkan rentang suhu fisiologis kulit ($27{,}0\text{--}38{,}5\,^\circ\mathrm{C}$ dengan penolakan sentinal $-999$) serta kontak beban aktif pada matriks FSR ($\ge 3$ sensor aktif $> 5\,\mathrm{kPa}$ atau tekanan $\ge 20\,\mathrm{kPa}$). Kedua, modul \texttt{ThresholdsConfig.kt} (\texttt{effectivePressureWarning()}) menyesuaikan ambang tekanan efektif secara alometrik terhadap berat badan pengguna ($W$) menggunakan persamaan $P_{\text{eff}} = \min\big(P_{\text{nominal}} \cdot (W / 60\,\mathrm{kg})^{0{,}67},\, 2800\,\mathrm{kPa}\big)$, dengan batas atas $2800\,\mathrm{kPa}$ demi keamanan jaringan kaki pasien.
+    \item \textbf{Hasil dan Pembelajaran:} Evaluasi tekanan plantar menjadi adaptif terhadap variasi berat badan dan terlindung dari derau kondisi tidak terpakai tanpa memerlukan kalibrasi ulang perangkat keras secara manual.
+\end{itemize}
+
+\subsection{Pencegahan False Alarm melalui Verifikasi Status Pemakaian dan Kelengkapan Data Edge}
+
+\begin{itemize}
+    \item \textbf{Uraian Masalah dan Konteks:} Ketika \textit{insole} belum dikenakan sepenuhnya, sedang dilepas oleh pasien, atau mengalami gangguan propagasi nirkabel sementara pada salah satu kaki, nilai pembacaan sensor dapat menunjukkan selisih semu atau angka transien. Jika kondisi ini langsung memicu peringatan risiko tinggi, pasien akan mengalami kepanikan yang tidak perlu dan mengabaikan aplikasi.
+    \item \textbf{Dampak terhadap Pekerjaan:} Tingginya tingkat peringatan palsu (\textit{false alarm}) bertentangan langsung dengan tujuan utama perancangan antarmuka pasien yang aman dan menenangkan.
+    \item \textbf{Langkah Penyelesaian dan Alternatif:} Penulis merancang mekanisme gerbang validasi bertingkat pada Android sebelum mesin aturan peringatan dijalankan. Pertama, sistem memeriksa kelengkapan dan integritas struktur paket data dari kedua perangkat \textit{edge} (kiri dan kanan) serta rentang toleransi sinkronisasi waktunya; paket yang tidak lengkap ditandai dan dilewati. Kedua, sistem memverifikasi status pemakaian aktif (\textit{wear-state verification}) dengan memastikan adanya kontak beban minimum pada matriks FSR dan suhu dalam rentang fisiologis kulit kaki manusia. Ketiga, sistem menerapkan gerbang ketekunan (\textit{persistence gate}) selama beberapa siklus berturut-turut beserta jeda penguncian (\textit{cooldown}) sebelum menyampaikan pesan pengingat empatik melalui \texttt{PromptRuleEngine.kt}.
+    \item \textbf{Hasil dan Pembelajaran:} Peringatan palsu akibat kondisi perangkat tidak terpakai maupun paket BLE yang terputus sesaat berhasil diredam, sehingga setiap pesan pengingat yang muncul benar-benar merepresentasikan kondisi pemakaian aktual.
+\end{itemize}
+
+\section{Kolaborasi dan Dampak terhadap Anggota Tim Lain}
+\label{sec:kolaborasi_dampak}
+
+Sebagai pengembang subsistem perangkat lunak yang menghubungkan perangkat keras dengan pengguna akhir, hasil pekerjaan penulis berfungsi sebagai lapisan pengintegrasi (\textit{enabling layer}) bagi seluruh anggota tim:
+
+\begin{itemize}
+    \item \textbf{Koordinasi Kontrak Data dengan Tim Perangkat Keras dan Algoritma:} Penulis menyusun format paket data kontrak CSV yang menjadi acuan baku antara anggota tim perangkat keras (yang merakit jalur sensor ke pin ESP32-C3) dan anggota tim algoritma (yang merumuskan persamaan konversi satuan). Dengan kontrak data yang jelas sejak tahap perancangan, pengujian perangkat keras dan pengembangan antarmuka Android dapat berjalan secara paralel tanpa saling menghambat.
+    \item \textbf{Penyediaan Infrastruktur Pengujian dan Audit Data Terpusat:} Layanan autentikasi JWT terpadu, basis data PostgreSQL mandiri pada Docker, serta penyemai skenario uji (\texttt{ClinicalScenarioSeeder.kt}) yang dibangun penulis mempermudah anggota tim algoritma dalam memverifikasi perilaku klasifikasi risiko multi-hari tanpa harus menunggu pengujian fisik selama berhari-hari setiap kali melakukan penyesuaian parameter.
+    \item \textbf{Penyelarasan Visualisasi Klinis untuk Validasi Purwarupa:} Antarmuka pemantauan waktu nyata pada aplikasi Android dan tampilan analitik terstruktur (asimetri suhu bilateral harian $\Delta T$, durasi persistensi di atas $2{,}2\,^\circ\mathrm{C}$, serta peta zona tekanan tinggi pada \texttt{HALLUX}, \texttt{MTH1}, \texttt{MTH2}, \texttt{MTH4}, dan \texttt{HEEL}) pada web \textit{dashboard} dokter membantu anggota tim mengevaluasi akurasi respons sensor saat purwarupa diuji coba.
+\end{itemize}
+
+\section{Penerapan Konsep Ilmiah/Teknis dalam Kontribusi}
+\label{sec:konsep_ilmiah}
+
+Setiap keputusan rekayasa dalam kontribusi penulis dilandasi oleh konsep ilmiah dan prinsip teknik informatika serta instrumentasi biomedis yang dipelajari selama perkuliahan:
+
+\begin{enumerate}
+    \item \textbf{Teorema Pencuplikan Nyquist dan Manajemen Daya Sistem Tertanam (Mata Kuliah Sistem Mikroprosesor serta Isyarat dan Sistem):}
+    Pemilihan frekuensi transmisi BLE 5 Hz pada ESP32-C3 didasarkan pada analisis karakteristik domain frekuensi sinyal fisiologis yang dipantau. Perubahan suhu permukaan kulit akibat inflamasi subdermal berlangsung sangat lambat (konstanta waktu dalam orde menit hingga jam), sedangkan parameter biomekanik langkah cukup direpresentasikan melalui siklus langkah berjalan manusia normal ($1\text{--}2\,\mathrm{Hz}$). Berdasarkan kriteria Nyquist ($f_s \ge 2 f_{\max}$), laju pengiriman 5 Hz sudah memadai untuk merekonstruksi kejadian langkah dan tren termal tanpa kehilangan informasi klinis, sekaligus menekan siklus kerja (\textit{duty cycle}) pemancar radio 2,4 GHz dibandingkan transmisi 20--50 Hz. Penerapan konsep ini tercermin pada kode \textit{firmware} yang dibuktikan melalui Artefak~\ref{fig:bukti_github}.
+
+    \item \textbf{Penskalaan Alometrik Biomekanika dan Mesin Keadaan Hingga / FSM (Mata Kuliah Teknik Biomekanika dan Fisika Mekanika Klasik):}
+    Untuk mencegah bias penilaian beban mekanik akibat perbedaan massa tubuh pasien, penulis menerapkan hukum penskalaan alometrik terhadap berat badan pengguna ($P_{\text{eff}} = \min\big(P_{\text{nominal}} \cdot (W / 60\text{ kg})^{0,67},\, 2800\text{ kPa}\big)$) pada modul \texttt{ThresholdsConfig.kt}, sementara klasifikasi risiko gabungan dua hari dikelola oleh \texttt{ClinicalScoringVariables.kt}. Selain itu, konsep \textit{Finite State Machine} (FSM) dengan fusi sensor IMU dan tekanan FSR diterapkan pada \texttt{WalkingFSM.kt} untuk memvalidasi siklus pembebanan (\textit{swing unweighting} $< 40\text{ kPa}$ diikuti \textit{stance touchdown} $\ge 60\text{ kPa}$), sehingga getaran kaki saat pasien duduk atau berdiri diam tidak dihitung sebagai langkah berjalan. Penerapan ini diverifikasi melalui pengujian unit pada Artefak~\ref{fig:bukti_android_test}.
+
+    \item \textbf{Arsitektur Perangkat Lunak Reaktif, Persistensi Offline-First, dan Keamanan Stateless JWT (Mata Kuliah Jaringan Komputer dan Pemrograman):}
+    Pada aplikasi Android, pola Clean Architecture dan MVVM dipadukan dengan aliran data asinkron Kotlin \texttt{SharedFlow} (\texttt{InsoleBleManager.kt}) untuk memisahkan utas penerimaan data BLE dari utas perenderan antarmuka pengguna (\textit{UI thread}) agar tampilan \textit{heatmap} tetap responsif. Untuk menjamin keandalan data di lingkungan dengan konektivitas internet yang tidak stabil, penulis menerapkan arsitektur \textit{offline-first} menggunakan basis data lokal SQLite (\texttt{Room DB}) yang melakukan penyimpanan agregat harian secara periodik (tiap 60 detik di \texttt{BleSensorDataSource.kt}) dan sinkronisasi batch idempoten ke \textit{server} melalui \texttt{SyncCloudDataUseCase.kt}. Pada sisi peladen, kontainerisasi Docker dengan layanan Go REST API (\texttt{cloud/server/}), PostgreSQL mandiri (\texttt{cloud/schema.sql}), dan otorisasi berbasis token kriptografis JWT (\textit{stateless authentication}) dipilih dibandingkan layanan pihak ketiga untuk menjamin kedaulatan data kesehatan pasien serta kemudahan integrasi lintas platform (Android dan web Vue 3 + Vite), sebagaimana dibuktikan pada Artefak~\ref{fig:bukti_postgres_docker}.
+
+    \item \textbf{Interaksi Manusia-Komputer Berbasis Empathetic UX dan Klinis Terstruktur (Mata Kuliah Interaksi Manusia dan Komputer):}
+    Pasien penyakit kronis seperti diabetes melitus rentan mengalami kecemasan klinis apabila dihadapkan pada peringatan medis bernada darurat secara berulang. Oleh karena itu, penulis memisahkan paradigma desain antara antarmuka pasien dan antarmuka dokter: antarmuka pasien pada Android menggunakan kurasi bahasa yang suportif dan menenangkan melalui \texttt{PromptRuleEngine.kt} untuk mendorong kepatuhan perawatan mandiri, sedangkan antarmuka web dokter berbasis Vue 3 + Vite menyajikan data numerik objektif (asimetri suhu bilateral $\Delta T$, durasi persistensi harian di atas ambang, peta zona tekanan plantar tinggi, tren kenaikan asimetri tiga hari, dan daftar triase pasien) untuk mendukung pengambilan keputusan medis secara cepat dan akurat, sebagaimana didokumentasikan pada Artefak~\ref{fig:bukti_figma}.
+\end{enumerate}

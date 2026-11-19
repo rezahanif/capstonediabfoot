@@ -1,0 +1,6 @@
+sample_idx,ref_weight_kg,ref_pressure_kpa,measured_weight_kg,measured_pressure_kpa,raw_adc,abs_error_kg,rel_error_pct,instrument,side
+1,3.20,710.4,3.30,732.6,1499,0.100,3.12,Calibrated Reference Weight,Left
+2,4.05,899.1,4.15,921.3,1837,0.100,2.47,Calibrated Reference Weight,Left
+3,5.00,1110.0,4.86,1078.9,1894,0.140,2.80,Calibrated Reference Weight,Left
+4,8.20,1820.4,8.05,1787.1,2268,0.150,1.83,Calibrated Reference Weight,Left
+5,10.55,2342.1,10.10,2242.2,2464,0.450,4.27,Calibrated Reference Weight,Left

@@ -1,0 +1,13 @@
+{
+  "test_id": "TEST-09",
+  "name": "BLE Data Reception & App Processing Success Rate",
+  "device_id": "0E54705I22104142",
+  "duration_seconds": 60,
+  "total_gatt_notifications_received": 268,
+  "total_packets_processed_successfully": 267,
+  "total_packets_corrupt_rejected": 0,
+  "total_buffer_overflow_drops": 0,
+  "processing_success_rate_percent": 99.63,
+  "buffer_retention_rate_percent": 100.0,
+  "timestamp": "2026-10-24_14-16-35"
+}

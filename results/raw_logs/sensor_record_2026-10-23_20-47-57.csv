@@ -1,0 +1,1 @@
+time_ms,fsr1_v,fsr1_r,fsr1_forceN,fsr1_pressurekPa,fsr2_v,fsr2_r,fsr2_forceN,fsr2_pressurekPa,fsr3_v,fsr3_r,fsr3_forceN,fsr3_pressurekPa,fsr4_v,fsr4_r,fsr4_forceN,fsr4_pressurekPa,fsr5_v,fsr5_r,fsr5_forceN,fsr5_pressurekPa,ntc_v_ads,ntc_r,ntc_tempC,mpu_status,ax,ay,az,gx,gy,gz,mpu_tempC

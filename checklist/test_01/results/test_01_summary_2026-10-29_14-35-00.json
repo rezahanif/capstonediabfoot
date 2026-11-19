@@ -1,0 +1,21 @@
+{
+  "test_id": "TEST-01",
+  "name": "NTC Thermistor Temperature Accuracy & Dynamic Range MAE Benchmark",
+  "target_device": "Smart_Insole_Left",
+  "sensor": "10k NTC Thermistor via ADS1115 (16-bit ADC Channel A0)",
+  "reference_instrument": "Non-Contact Infrared Thermo Gun",
+  "test_date": "2026-10-29 14:35:00",
+  "sample_count": 6,
+  "dynamic_range_min_c": 31.7,
+  "dynamic_range_max_c": 51.2,
+  "mae_c": 0.388,
+  "rmse_c": 0.503,
+  "mre_pct": 1.00,
+  "accuracy_pct": 99.00,
+  "pearson_r": 0.99851,
+  "r_squared": 0.99702,
+  "regression_slope": 0.99412,
+  "regression_intercept": -0.09456,
+  "target_threshold_c": 1.00,
+  "verdict": "PASSED"
+}

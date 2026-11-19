@@ -1,0 +1,6 @@
+trial_idx,ref_weight_kg,measured_weight_kg,measured_pressure_kpa,deviation_from_mean_kg,deviation_from_ref_kg,side
+1,2.15,2.10,466.20,-0.030,-0.050,Left
+2,2.15,2.30,510.60,0.170,0.150,Left
+3,2.15,2.05,455.10,-0.080,-0.100,Left
+4,2.15,1.98,439.56,-0.150,-0.170,Left
+5,2.15,2.22,492.84,0.090,0.070,Left

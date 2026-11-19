@@ -1,0 +1,22 @@
+{
+  "test_bench": "DiabFoot Battery & Stability Watcher",
+  "side": "RIGHT",
+  "device_name": "Smart_Insole_Right",
+  "elapsed_seconds": 6360,
+  "elapsed_hours": 1.767,
+  "target_hours": 8.0,
+  "progress_percent": 22.08,
+  "total_packets_received": 31200,
+  "stream_packets": 31094,
+  "heartbeat_packets": 106,
+  "uptime_seconds": 6421,
+  "boot_count": 1,
+  "reboots_detected": 0,
+  "free_heap_bytes": 180032,
+  "min_heap_bytes": 180032,
+  "battery_percent": 100,
+  "latest_temp_c": 25.0,
+  "disconnect_count": 0,
+  "is_target_met": false,
+  "updated_at": "2026-10-29T02:27:41.670319"
+}

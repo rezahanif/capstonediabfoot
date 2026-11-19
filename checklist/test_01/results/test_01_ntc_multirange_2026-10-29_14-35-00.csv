@@ -1,0 +1,7 @@
+sample_idx,ref_temp_c,measured_temp_c,measured_temp_f,adc_16bit,adc_12bit,vout_v,r_ntc_kohm,abs_error_c,rel_error_pct,instrument,side
+1,31.70,31.59,88.86,15079,2339,1.885,7.509,0.110,0.35,Infrared Thermo Gun,Left
+2,32.00,32.04,89.67,15201,2358,1.900,7.367,0.040,0.12,Infrared Thermo Gun,Left
+3,34.20,33.25,91.85,15517,2407,1.940,7.009,0.950,2.78,Infrared Thermo Gun,Left
+4,51.20,50.61,123.10,19545,3032,2.443,3.506,0.590,1.15,Infrared Thermo Gun,Left
+5,44.20,44.36,111.85,18259,2832,2.282,4.458,0.160,0.36,Infrared Thermo Gun,Left
+6,38.60,38.12,100.62,16790,2604,2.099,5.721,0.480,1.24,Infrared Thermo Gun,Left

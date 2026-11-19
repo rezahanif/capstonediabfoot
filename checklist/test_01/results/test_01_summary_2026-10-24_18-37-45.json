@@ -1,0 +1,17 @@
+{
+  "test_id": "TEST-01",
+  "name": "NTC Thermistor Temperature Accuracy & MAE Benchmark",
+  "verdict": "PASSED",
+  "reference_instrument": "Thermo Gun",
+  "reference_temp_c": 25.4,
+  "total_samples": 15,
+  "mean_measured_temp_c": 24.57,
+  "mean_absolute_error_c": 0.83,
+  "mean_relative_error_pct": 3.27,
+  "accuracy_percent": 96.73,
+  "std_deviation_c": 0.148,
+  "min_absolute_error_c": 0.61,
+  "max_absolute_error_c": 1.11,
+  "target_spec_mae_c": 1.0,
+  "timestamp": "2026-10-24_18-37-45"
+}

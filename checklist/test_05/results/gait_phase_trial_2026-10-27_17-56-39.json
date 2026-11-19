@@ -1,0 +1,64 @@
+{
+  "test_id": "TEST-05",
+  "test_name": "Gait Phase Pattern Classification Benchmark",
+  "timestamp": "2026-10-27_17-56-39",
+  "device": {
+    "side": "Right",
+    "name": "Smart_Insole_Right",
+    "service_uuid": "4fa2c732-ca9a-4c20-9492-c167df3c942c",
+    "char_uuid": "beb5483e-36e1-4688-b7f5-ea07361b26c9",
+    "address": "6B26DF96-422E-0DDF-26CB-C50EA51F6DDD"
+  },
+  "trial_metrics": {
+    "total_telemetry_frames": 114,
+    "active_gait_frames": 103,
+    "idle_pause_frames": 11,
+    "trial_duration_s": 23.04,
+    "cadence_spm": 52.1,
+    "total_steps": 20
+  },
+  "phase_distribution": {
+    "SWING": {
+      "frames": 41,
+      "detected_pct": 36.0,
+      "clinical_range_pct": [35.0, 40.0],
+      "offset_to_range_pct": 0.0,
+      "status": "INSIDE_RANGE"
+    },
+    "MIDSTANCE": {
+      "frames": 17,
+      "detected_pct": 14.9,
+      "clinical_range_pct": [20.0, 35.0],
+      "offset_to_range_pct": -5.1,
+      "status": "BELOW_MIN"
+    },
+    "TOE_OFF": {
+      "frames": 44,
+      "detected_pct": 38.6,
+      "clinical_range_pct": [20.0, 30.0],
+      "offset_to_range_pct": 8.6,
+      "status": "ABOVE_MAX"
+    },
+    "HEEL_STRIKE": {
+      "frames": 1,
+      "detected_pct": 0.9,
+      "clinical_range_pct": [2.0, 5.0],
+      "offset_to_range_pct": -1.1,
+      "status": "BELOW_MIN"
+    },
+    "REST_IDLE": {
+      "frames": 11,
+      "detected_pct": 9.7,
+      "clinical_range_pct": "Start/Stop Pause Buffer",
+      "offset_to_range_pct": 0.0,
+      "status": "NORMAL_BUFFER"
+    }
+  },
+  "benchmark_summary": {
+    "average_range_offset_pct": 3.7,
+    "range_compliance_accuracy_pct": 96.3,
+    "step_cycle_sequence_validity_pct": 90.0,
+    "passing_threshold_pct": 80.0,
+    "status": "PASSED"
+  }
+}

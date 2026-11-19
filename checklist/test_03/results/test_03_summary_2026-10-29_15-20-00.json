@@ -1,0 +1,20 @@
+{
+  "test_id": "TEST-03",
+  "name": "FSR Sensor Repeatability & Coefficient of Variation (CV) Benchmark",
+  "target_device": "Smart_Insole_Left",
+  "sensor": "Piezoresistive FSR (Repeat Load Cyclic Bench)",
+  "reference_weight_kg": 2.15,
+  "reference_pressure_kpa": 477.3,
+  "test_date": "2026-10-29 15:20:00",
+  "trial_count": 5,
+  "trials_kg": [2.10, 2.30, 2.05, 1.98, 2.22],
+  "mean_weight_kg": 2.1300,
+  "mean_pressure_kpa": 472.86,
+  "std_dev_sample_kg": 0.1292,
+  "std_dev_pop_kg": 0.1156,
+  "cv_sample_pct": 6.07,
+  "cv_pop_pct": 5.43,
+  "target_cv_threshold_pct": 10.00,
+  "margin_pass_factor": 1.65,
+  "verdict": "PASSED"
+}

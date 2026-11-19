@@ -1,0 +1,223 @@
+\section{Pengujian dan Pembahasan}
+\label{sec:pengujian}
+
+Pada bagian ini dijelaskan rancangan pengujian, skenario evaluasi, serta kerangka analisis teknis terhadap sistem pemantauan kesehatan kaki diabetik (\textit{smart insole}) DiabFoot. Pengujian dirancang untuk memverifikasi keandalan perangkat keras (\textit{hardware}), ketepatan akuisisi dan pemrosesan data pada \textit{firmware} ESP32-C3, integritas transmisi nirkabel \textit{Bluetooth Low Energy} (BLE), efisiensi komputasi pada aplikasi bergerak Android, serta validitas deterministik dari algoritma klasifikasi risiko \textit{Diabetic Foot Ulcer} (DFU).
+
+Setiap skenario pengujian mencakup tujuan pengujian, komponen yang diuji, prosedur pelaksanaan, formulasi matematis berbasis prinsip rekayasa instrumentasi biomedis dan fisika sensor, serta kriteria keberhasilan kuantitatif. Seluruh data hasil pengukuran empiris, tabel evaluasi, dan grafik visualisasi dari skenario pengujian ini disajikan dan dirangkum pada Bab~7 (Bagian~\ref{sec:kesimpulan}).
+
+\begin{table}[htbp]
+\centering
+\caption{Rancangan Matriks Spesifikasi dan Kriteria Keberhasilan Pengujian Sistem DiabFoot}
+\label{tab:test_plan_matrix}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|p{4.4cm}|p{5.2cm}|p{3.8cm}|}
+\hline
+\textbf{ID Uji} & \textbf{Parameter Pengujian} & \textbf{Metode / Instrumen Acuan} & \textbf{Kriteria Keberhasilan} \\ \hline
+\textbf{UJI-01} & Akurasi Suhu NTC & 10 titik ($26{,}80 - 51{,}20\,^\circ\mathrm{C}$) vs \textit{IR Thermo Gun} & $\text{MAE} < 1{,}00\,^\circ\mathrm{C}$ \\ \hline
+\textbf{UJI-02} & Akurasi Beban Tekanan FSR & Beban statis terkalibrasi ($0{,}00 - 10{,}55\,\mathrm{kg}$) & $\text{MRE} < 15{,}0\%$ \\ \hline
+\textbf{UJI-03} & Konsistensi Berulang FSR & Pembebanan siklik konstan $2{,}15\,\mathrm{kg}$ ($N=5$) & $\text{CV} < 8{,}0\%$ \\ \hline
+\textbf{UJI-04} & Akurasi Penghitungan Langkah & Berjalan 20 langkah/sesi vs hitung manual & Galat langkah $< 10{,}0\%$ \\ \hline
+\textbf{UJI-05} & Klasifikasi Fase Gait & Pembandingan fase FSM vs norma Perry-Burnfield & Akurasi rentang $> 80{,}0\%$ \\ \hline
+\textbf{UJI-06} & Keandalan Paket BLE & Transmisi kontinu 5\,Hz pada RSSI $-66\,\mathrm{dBm}$ & \textit{Packet Loss} $< 10{,}0\%$ \\ \hline
+\textbf{UJI-07} & Latensi Komunikasi BLE & Pengukuran interval $\Delta t$ dan pipa \texttt{SharedFlow} & Latensi pipa $< 5{,}0\,\mathrm{ms}$ \\ \hline
+\textbf{UJI-08} & Laju Cuplik Dinamis IMU & Pengujian cuplik aktif 50\,Hz \& \textit{throttling} 20\,Hz & $50 \pm 5\,\mathrm{Hz}$ / $20 \pm 3\,\mathrm{Hz}$ \\ \hline
+\textbf{UJI-09} & Tingkat Pemrosesan Aplikasi & Rasio paket valid dari GATT hingga \texttt{WalkingFSM} & Sukses proses $\ge 95{,}0\%$ \\ \hline
+\textbf{UJI-10} & Stabilitas Operasi \& Uptime & Uji ketahanan kontinu (\textit{stress bench}) & 0 \textit{crash}, 0 \textit{memory leak} \\ \hline
+\textbf{UJI-11} & Karakterisasi Daya Tahan & Uji pengosongan baterai Li-Po 300\,mAh (5\,Hz) & Peta jalan operasi $\ge 8{,}0\,\mathrm{jam}$ \\ \hline
+\textbf{UJI-12} & Logika Deteksi Risiko DFU & \textit{Unit test} \& emulasi skenario multi-hari Room & Kesesuaian \textit{rule engine} $100\%$ \\ \hline
+\end{tabular}%
+}
+\end{table}
+
+% =========================================================================
+% SKENARIO 1: NTC
+% =========================================================================
+\subsection{Skenario Pengujian 1: Respons Sensor Suhu NTC terhadap Temperatur}
+\label{subsec:Skenario1}
+
+Pengujian respons sensor suhu NTC (\textit{Negative Temperature Coefficient}) bertujuan untuk mengevaluasi akurasi, rentang dinamis, serta linearitas sensor suhu yang tertanam pada sol insole pintar (\textit{midfoot node}) dalam mengukur suhu plantar kaki. Pada pasien neuropati diabetik, hilangnya sensasi protektif perifer menyebabkan inflamasi mikro akibat gesekan tidak terdeteksi. Berdasarkan literatur klinis konsensus internasional (Armstrong dkk. dan IWGDF), asimetri suhu bilateral $\ge 2{,}2\,^\circ\mathrm{C}$ ($4{,}0\,^\circ\mathrm{F}$) antar titik kontralateral kaki yang bersesuaian merupakan indikator kuat terjadinya inflamasi pra-ulkus. Oleh karena itu, sensor suhu insole harus memiliki tingkat kesalahan rata-rata (\textit{Mean Absolute Error} / MAE) $< 1{,}00\,^\circ\mathrm{C}$ pada rentang suhu fisiologis hingga hipertermia.
+
+Pengujian dilakukan menggunakan sensor termistor NTC 10\,k$\Omega$ yang dihubungkan ke ADC eksternal 16-bit ADS1115 pada saluran A0 (\texttt{ADS\_CH\_NTC = 0}) melalui rangkaian pembagi tegangan dengan resistor referensi $R_{\mathrm{ref}} = 10\,\mathrm{k}\Omega$ presisi tinggi ($1\%$) pada catu daya $V_{\mathrm{CC}} = 3{,}3\,\mathrm{V}$. Nilai suhu referensi ($T_{\mathrm{ref}}$) diukur secara sinkron menggunakan termometer inframerah terkalibrasi berstandar klinis (\textit{infrared thermo gun}) pada 10 titik temperatur dinamis ($26{,}80\,^\circ\mathrm{C} - 51{,}20\,^\circ\mathrm{C}$).
+
+Hubungan antara resistansi termistor $R_{\mathrm{NTC}}$ dan temperatur absolut $T$ dihitung oleh \textit{firmware} ESP32-C3 menggunakan persamaan Steinhart-Hart dengan parameter $\beta = 3950\,\mathrm{K}$ dan resistansi nominal $R_0 = 10\,\mathrm{k}\Omega$ pada $T_0 = 298{,}15\,\mathrm{K}$ ($25\,^\circ\mathrm{C}$):
+\begin{equation}
+\frac{1}{T} = \frac{1}{T_0} + \frac{1}{\beta}\ln\left(\frac{R_{\mathrm{NTC}}}{R_0}\right)
+\end{equation}
+Resistansi termistor diperoleh dari tegangan keluaran pembagi tegangan $V_{\mathrm{out}}$ yang dikonversi dari cacah digital ADS1115 (PGA $\pm 4{,}096\,\mathrm{V}$, $1\,\mathrm{LSB} = 0{,}125\,\mathrm{mV}$):
+\begin{equation}
+R_{\mathrm{NTC}} = R_{\mathrm{ref}} \left(\frac{V_{\mathrm{CC}}}{V_{\mathrm{out}}} - 1\right)
+\end{equation}
+Galat absolut pada setiap titik pengukuran ke-$i$ dihitung dengan:
+\begin{equation}
+e_i = \left|T_{\mathrm{NTC},i}-T_{\mathrm{ref},i}\right|
+\end{equation}
+dan nilai \textit{Mean Absolute Error} (MAE) serta \textit{Root Mean Square Error} (RMSE) dihitung melalui persamaan:
+\begin{equation}
+\mathrm{MAE} = \frac{1}{N}\sum_{i=1}^{N}\left|T_{\mathrm{NTC},i}-T_{\mathrm{ref},i}\right|
+\end{equation}
+\begin{equation}
+\mathrm{RMSE} = \sqrt{\frac{1}{N}\sum_{i=1}^{N}\left(T_{\mathrm{NTC},i}-T_{\mathrm{ref},i}\right)^2}
+\end{equation}
+Sensor dinyatakan memenuhi spesifikasi apabila $\mathrm{MAE} < 1{,}00\,^\circ\mathrm{C}$ serta menunjukkan linearitas regresi yang tinggi ($R^2 > 0{,}95$) agar tidak memicu peringatan termal palsu.
+
+% =========================================================================
+% SKENARIO 2: FSR
+% =========================================================================
+\subsection{Skenario Pengujian 2: Respons Sensor Tekanan terhadap Variasi Beban}
+\label{subsec:Skenario2}
+
+Pengujian respons sensor tekanan bertujuan untuk mengevaluasi akurasi, linearitas, serta keterulangan (\textit{repeatability}) sensor \textit{Force Sensitive Resistor} (FSR) dalam mengukur beban mekanik plantar kaki. Tekanan plantar berlebih yang berkepanjangan ($> 200 - 300\,\mathrm{kPa}$) di bawah kaput metatarsal atau kalkaneus merupakan pemicu utama kerusakan jaringan subkutan pada kaki diabetik. Oleh karena itu, sensor tekanan FSR ditargetkan memiliki \textit{Mean Relative Error} ($\text{MRE}$) $< 15{,}0\%$ pada pengujian beban statis rentang dinamis $0{,}00 - 10{,}55\,\mathrm{kg}$ ($0 - 2342{,}1\,\mathrm{kPa}$) dan \textit{Coefficient of Variation} ($\text{CV}$) $< 8{,}0\%$ (dengan batas toleransi medis $< 10{,}0\%$) pada pengujian siklik berulang.
+
+Karakteristik konduktansi polimer piezoresistif pada sensor FSR bersifat non-linear dan mengalami saturasi logaritmik pada beban tinggi ($> 5\,\mathrm{kg}$). Untuk mengatasi fenomena fisik tersebut, \textit{firmware} ESP32-C3 mengimplementasikan tabel kalibrasi linier \textit{piecewise} 11-titik (\textit{Look-Up Table} / LUT) yang memetakan cacah ADC ke dalam satuan massa (kg) dan tekanan ($\mathrm{kPa}$) berdasarkan luas efektif cakram penekan sensor $A = 44{,}18\,\mathrm{mm}^2$, disertai filter digital \textit{oversampling} 8-sampel (\texttt{readOversampledADC}) dan kalibrasi tara awal (\textit{auto-zeroing tare}) pada titik $0{,}00\,\mathrm{kg}$.
+
+Besarnya galat relatif pada setiap variasi beban aktif ke-$i$ dihitung dengan persamaan:
+\begin{equation}
+Error_i = \frac{\left|F_{\mathrm{sensor},i}-F_{\mathrm{ref},i}\right|}{F_{\mathrm{ref},i}} \times 100\%
+\end{equation}
+dan rata-rata galat relatif (\textit{Mean Relative Error}) dihitung dengan:
+\begin{equation}
+\mathrm{MRE} = \frac{1}{N}\sum_{i=1}^{N} Error_i
+\end{equation}
+Pengujian keterulangan dilakukan dengan memberikan beban konstan terkalibrasi sebesar $2{,}15\,\mathrm{kg}$ ($477{,}3\,\mathrm{kPa}$) secara berulang sebanyak 5 kali siklus ($N=5$) pengisian dan pengosongan beban penuh untuk mengevaluasi histeresis mekanik material polimer. Konsistensi hasil dievaluasi menggunakan standar deviasi sampel ($s$) dan \textit{Coefficient of Variation} (CV):
+\begin{equation}
+s = \sqrt{\frac{1}{N-1}\sum_{i=1}^{N}(F_i - \bar{F})^2}
+\end{equation}
+\begin{equation}
+\mathrm{CV} = \frac{s}{\bar{F}} \times 100\%
+\end{equation}
+
+% =========================================================================
+% SKENARIO 3: IMU STEP COUNTING
+% =========================================================================
+\subsection{Skenario Pengujian 3: Respons Sensor IMU terhadap Aktivitas Pengguna}
+\label{subsec:Skenario3}
+
+Pengujian respons sensor IMU (MPU-6050) bertujuan untuk mengevaluasi kemampuan sistem dalam mendeteksi pergerakan kaki dan menghitung akumulasi langkah berjalan pengguna secara akurat. Pemantauan jumlah langkah harian sangat penting pada manajemen kaki diabetik untuk membatasi beban mekanik kumulatif harian (\textit{cumulative mechanical stress}) agar tidak memicu kerusakan jaringan subkutan. Parameter keberhasilan pengujian menetapkan galat deteksi langkah $< 10{,}0\%$ terhadap perhitungan manual terverifikasi (\textit{ground truth video tally}).
+
+Berbeda dengan algoritma pedometer konvensional yang hanya mengandalkan deteksi puncak akselerometer, algoritma pedometer DiabFoot mengimplementasikan \textit{Finite State Machine} multi-sensor (\texttt{WalkingFSM.kt}) pada lapisan domain aplikasi Android. Algoritma ini mengorelasikan magnitudo percepatan linear vertikal dari IMU dengan gaya reaksi tanah dari matriks sensor tekanan FSR. Satu siklus langkah dihitung secara tegas hanya ketika insole menyelesaikan transisi fase lengkap: $\mathrm{TRANSITION} \rightarrow \mathrm{CONTACT} \rightarrow \mathrm{HEEL\_OFF} \rightarrow \mathrm{TOE\_OFF} \rightarrow \mathrm{SWING}$. Mekanisme ini secara teoretis mencegah penghitungan langkah palsu (\textit{phantom steps}) akibat getaran atau gerakan kaki saat duduk.
+
+Pengujian dilakukan melalui beberapa sesi berjalan terkalibrasi (20 langkah per sesi pada kecepatan berjalan alami) dengan membandingkan keluaran sistem ($N_{\mathrm{sensor}}$) terhadap jumlah langkah aktual ($N_{\mathrm{manual}}$). Persentase galat deteksi langkah dihitung menggunakan persamaan:
+\begin{equation}
+Error_{\mathrm{step}} = \frac{\left|N_{\mathrm{sensor}}-N_{\mathrm{manual}}\right|}{N_{\mathrm{manual}}} \times 100\%
+\end{equation}
+
+% =========================================================================
+% SKENARIO 4: GAIT PHASE CLASSIFICATION
+% =========================================================================
+\subsection{Skenario Pengujian 4: Deteksi Aktivitas dan Fase Gait}
+\label{subsec:Skenario4}
+
+Pengujian deteksi aktivitas dan fase gait bertujuan untuk mengevaluasi kemampuan sistem dalam mengidentifikasi pola temporal siklus pergerakan kaki (\textit{gait cycle}) pengguna secara berkelanjutan serta memverifikasi laju cuplik dinamis sensor IMU. Klasifikasi fase berjalan krusial dalam analisis biomekanik kaki diabetik karena penyimpangan durasi fase tumpuan (\textit{stance}) atau ayunan (\textit{swing}) dapat mengindikasikan pola berjalan kompensasi (\textit{antalgic gait}) yang memicu konsentrasi tekanan abnormal.
+
+Pengujian dilakukan selama aktivitas berjalan kontinu dengan merekam bingkai telemetri pada laju transmisi 5\,Hz dan mengklasifikasikannya ke dalam 4 fase utama (\textit{Heel-Strike}, \textit{Midstance}, \textit{Toe-Off}, dan \textit{Swing}). Kinerja klasifikasi dievaluasi dengan membandingkan distribusi persentase durasi setiap fase terhadap norma klinis baku Perry \& Burnfield (\textit{Swing}: $35 - 40\%$, \textit{Midstance}: $20 - 35\%$, \textit{Toe-Off}: $20 - 30\%$, \textit{Heel-Strike}: $2 - 5\%$), dengan target akurasi kepatuhan rentang $\ge 80{,}0\%$. Pergeseran rata-rata rentang dan akurasi kepatuhan dihitung menggunakan:
+\begin{equation}
+Offset_{\mathrm{avg}} = \frac{1}{M}\sum_{j=1}^{M}\left|\Delta_{\mathrm{norm},j}\right|
+\end{equation}
+\begin{equation}
+Accuracy_{\mathrm{gait}} = 100\% - Offset_{\mathrm{avg}}
+\end{equation}
+dengan $\Delta_{\mathrm{norm},j}$ merupakan selisih persentase terukur terhadap batas terdekat rentang rujukan fisiologis pada fase ke-$j$ ($M=4$). Selain itu, dilakukan verifikasi laju cuplik internal MPU-6050 pada mode aktif ($50 \pm 5\,\mathrm{Hz}$) dan mode hemat daya dinamis (\textit{dynamic rate throttling} ke $20 \pm 3\,\mathrm{Hz}$) saat mobilitas rendah.
+
+% =========================================================================
+% SKENARIO 5: BLE
+% =========================================================================
+\subsection{Skenario Pengujian 5: Kinerja Komunikasi Data BLE}
+\label{subsec:Skenario5}
+
+Pengujian kinerja komunikasi \textit{Bluetooth Low Energy} (BLE) bertujuan untuk mengevaluasi keandalan transmisi nirkabel antara mikrokontroler ESP32-C3 pada insole dan aplikasi Android, serta mengukur efisiensi pipa pemrosesan data internal aplikasi. Kehilangan paket telemetri atau keterlambatan pemrosesan dapat menyebabkan distorsi perhitungan langkah harian dan keterlambatan deteksi lonjakan tekanan plantar.
+
+Pengujian dilakukan dengan mengalirkan paket telemetri secara kontinu pada frekuensi nominal 5\,Hz ($\Delta t \approx 200\,\mathrm{ms}$) dalam kondisi propagasi RF tipikal pemakaian insole di dalam sepatu (RSSI $\approx -66\,\mathrm{dBm}$). Parameter evaluasi meliputi:
+\begin{enumerate}
+    \item \textbf{Persentase Kehilangan Paket (\textit{Packet Loss}):} Dihitung dari selisih nomor urut paket terkirim ($N_{\mathrm{sent}}$) dan diterima valid ($N_{\mathrm{received}}$) dengan target $< 10{,}0\%$:
+    \begin{equation}
+    Packet\ Loss = \frac{N_{\mathrm{sent}}-N_{\mathrm{received}}}{N_{\mathrm{sent}}} \times 100\%
+    \end{equation}
+    \item \textbf{Latensi Pipa Pemrosesan Aplikasi ($L_{\mathrm{pipe},i}$):} Waktu yang dibutuhkan sejak \textit{callback} GATT menerima notifikasi paket hingga data selesai didekode oleh \texttt{SensorPacketParser} dan dikirim ke \texttt{WalkingFSM} melalui \texttt{SharedFlow}, dengan target rata-rata $< 5{,}0\,\mathrm{ms}$:
+    \begin{equation}
+    L_{\mathrm{pipe},i} = t_{\mathrm{dispatched},i} - t_{\mathrm{received},i}
+    \end{equation}
+    \begin{equation}
+    \bar{L}_{\mathrm{pipe}} = \frac{1}{N}\sum_{i=1}^{N} L_{\mathrm{pipe},i}
+    \end{equation}
+    \item \textbf{Tingkat Sukses Pemrosesan Aplikasi:} Rasio paket valid yang berhasil diproses tanpa \textit{buffer drop} atau kesalahan \textit{checksum}, dengan target $\ge 95{,}0\%$.
+\end{enumerate}
+
+% =========================================================================
+% SKENARIO 6: SYSTEM STABILITY & INTEGRATION
+% =========================================================================
+\subsection{Skenario Pengujian 6: Pemantauan Insole pada Skenario Pemakaian}
+\label{subsec:Skenario6}
+
+Pengujian pemantauan insole pada skenario pemakaian terintegrasi bertujuan untuk mengevaluasi kestabilan sistem secara menyeluruh ketika menjalankan seluruh subsistem secara bersamaan—meliputi akuisisi ADC, pembacaan IMU, transmisi BLE, pemrosesan FSM, persistensi basis data Room, dan pembaruan antarmuka Compose—selama aktivitas duduk, berdiri, dan berjalan.
+
+Pada skenario ini, sistem dijalankan dalam uji ketahanan beban tinggi (\textit{continuous stress bench}) berdurasi jam guna memastikan tidak terjadinya kegagalan perangkat lunak atau perangkat keras. Parameter yang diamati meliputi kontinuitas paket telemetri, sifat monotonik dari waktu aktif (\textit{monotonic uptime}), konsistensi angka \textit{boot count} (tidak adanya \textit{watchdog reboot} atau \textit{kernel panic}), kestabilan alokasi memori \textit{internal heap} ESP32 (tidak terjadinya kebocoran memori / \textit{memory leak}), serta ketiadaan pemutusan koneksi Bluetooth mendadak.
+
+% =========================================================================
+% SKENARIO 7: DFU RISK CLASSIFICATION LOGIC
+% =========================================================================
+\subsection{Skenario Pengujian 7: Hasil Deteksi dan Klasifikasi Risiko DFU}
+\label{subsec:Skenario7}
+
+Pengujian deteksi dan klasifikasi risiko DFU bertujuan untuk memverifikasi kebenaran deterministik algoritma inferensi klinis pada aplikasi bergerak dalam mengolah data sensor menjadi kategori tingkat risiko ulkus kaki diabetik beserta informasi tindak lanjutnya. Pada tahap pengembangan ini, \textbf{pengujian tidak dilakukan secara langsung terhadap pasien penderita ulkus diabetik aktif} demi mematuhi prinsip bioetika medis (\textit{Declaration of Helsinki}) serta perlindungan keselamatan subjek rentan sebelum memperoleh persetujuan resmi dari Komite Etik Penelitian Kesehatan (\textit{Institutional Review Board} / IRB). Oleh karena itu, pengujian dirancang menggunakan metode \textit{Software-in-the-Loop} dan \textit{Hardware Scenario Emulation} melalui injeksi skenario sintetis terstandarisasi.
+
+Algoritma klasifikasi risiko diimplementasikan pada lapisan domain Android melalui kelas \texttt{ClinicalScoringVariables.kt} dan mesin aturan \texttt{PromptRuleEngine.kt} yang mengadopsi pedoman klinis Armstrong dkk. dan IWGDF:
+\begin{enumerate}
+    \item \textbf{Asimetri Termal ($\Delta T$):} Selisih suhu plantar inter-kaki $\Delta T = |T_{\mathrm{left}} - T_{\mathrm{right}}| \ge 2{,}2\,^\circ\mathrm{C}$ yang bertahan selama 2 hari berturut-turut pada kaki yang sama (\textit{sustained hotspot}).
+    \item \textbf{Beban Tekanan Plantar ($P_{\mathrm{eff}}$):} Tekanan puncak pada fase tumpuan yang melampaui ambang peringatan ($P_{\mathrm{nominal}} = 2000\,\mathrm{kPa}$) yang diskalakan secara allometrik terhadap berat badan pengguna ($W$):
+    \begin{equation}
+    P_{\mathrm{eff}} = P_{\mathrm{nominal}} \cdot \left(\frac{W}{60\,\mathrm{kg}}\right)^{0{,}67}
+    \end{equation}
+    \item \textbf{Penapisan Derau (\textit{Wear-Gating} \& \textit{Persistence}):} Evaluasi hanya aktif saat kondisi pemakaian valid ($T \in [27{,}0;\, 38{,}5]\,^\circ\mathrm{C}$, tekanan $\ge 5\,\mathrm{kPa}$ pada minimal 3 sensor FSR), dengan gerbang ketekunan 3 siklus berturut-turut ($N=3$) dan jeda penguncian (\textit{cooldown}) 30–60 menit untuk mencegah kelelahan peringatan (\textit{alert fatigue}).
+\end{enumerate}
+
+Keluaran klasifikasi ditentukan oleh fungsi kebenaran (\textit{truth table}) berikut:
+\begin{equation}
+RiskLevel = 
+\begin{cases} 
+\mathbf{HIGH} \text{ (\textit{Valid Swell})}, & \text{jika } T_{\mathrm{exceed}} = 1 \land P_{\mathrm{exceed}} = 1 \\ 
+\mathbf{HIGH} \text{ (\textit{Hotspot})}, & \text{jika } T_{\mathrm{exceed}} = 1 \land P_{\mathrm{exceed}} = 0 \\ 
+\mathbf{MEDIUM} \text{ (\textit{Overload})}, & \text{jika } T_{\mathrm{exceed}} = 0 \land P_{\mathrm{exceed}} = 1 \\ 
+\mathbf{LOW} \text{ (\textit{Baseline})}, & \text{jika } T_{\mathrm{exceed}} = 0 \land P_{\mathrm{exceed}} = 0 
+\end{cases}
+\end{equation}
+Pengujian dilakukan menggunakan \textit{unit testing} formal (\texttt{ClinicalRiskScoringTest.kt}) dan modul penyemai skenario multi-hari (\texttt{ClinicalScenarioSeeder.kt}) pada 4 skenario uji (Normal Baseline, Beban Mekanik Berlebih, Inflamasi Termal 2-Hari, dan Inflamasi Akut + Beban Puncak) untuk memverifikasi kesesuaian kategori risiko dan notifikasi tindak lanjut pasien (\textit{All Clear}, \textit{Attention}, \textit{No Data}).
+
+% =========================================================================
+% SKENARIO 8: BATTERY CONTINUOUS ENDURANCE
+% =========================================================================
+\subsection{Skenario Pengujian 8: Durasi Operasi Kontinu}
+\label{subsec:Skenario8}
+
+Pengujian durasi operasi kontinu bertujuan untuk mengarakterisasi profil konsumsi daya sistem insole pintar dan menentukan ukuran kapasitas baterai yang diperlukan untuk mendukung pemakaian harian pasien diabetes ($\ge 8{,}0\,\mathrm{jam}$). Pengujian dilakukan dengan mengoperasikan seluruh subsistem secara bersamaan (ESP32-C3, ADS1115, NTC, FSR, MPU-6050, dan radio BLE pada laju transmisi kontinu 5\,Hz) menggunakan baterai Li-Po 1-sel berkapasitas 300\,mAh yang diisi penuh hingga mencapai ambang pemutusan tegangan rendah (\textit{low-voltage cutoff}).
+
+Durasi operasi aktual dihitung berdasarkan selisih waktu akhir dan waktu mulai operasi:
+\begin{equation}
+t_{\mathrm{operasi}} = t_{\mathrm{akhir}} - t_{\mathrm{awal}}
+\end{equation}
+Sedangkan estimasi durasi operasi pada variasi kapasitas baterai ($C_{\mathrm{batt}}$) dan arus rata-rata ($I_{\mathrm{active}}$) dimodelkan melalui persamaan:
+\begin{equation}
+t_{\mathrm{est}} = \frac{C_{\mathrm{batt}}}{I_{\mathrm{active}}} \times \eta
+\end{equation}
+dengan $\eta$ merupakan faktor efisiensi pelepasan muatan baterai. Hasil karakterisasi ini menjadi dasar perhitungan peta jalan peningkatan kapasitas baterai dan optimalisasi siklus kerja \textit{firmware}.
+
+% =========================================================================
+% SECTION IMPROVEMENT
+% =========================================================================
+\section{\textit{Improvement}}
+\label{sec:improvement}
+
+Berdasarkan analisis arsitektur serta keterbatasan prototipe yang teridentifikasi selama perancangan skenario pengujian pada Subbab~\ref{subsec:Skenario1} hingga Subbab~\ref{subsec:Skenario8}, terdapat beberapa pengembangan dan revisi rancangan yang logis untuk dilakukan pada iterasi sistem berikutnya:
+
+\begin{enumerate}
+    \item \textbf{Integrasi Baterai Kapasitas Tinggi dan \textit{Fuel Gauge} (Perangkat Keras):}
+    Kapasitas baterai prototipe 300\,mAh perlu ditingkatkan menjadi baterai \textit{Lithium Polymer pouch cell} berkapasitas 850\,mAh (tipe 503048) agar mampu mendukung operasi penuh sepanjang hari ($\ge 8{,}0\,\mathrm{jam}$) di dalam rongga tumit sol. Selain itu, penambahan IC pemantau daya (\textit{hardware fuel gauge} seperti MAX17048) diperlukan untuk menggantikan estimasi tegangan sederhana agar aplikasi dapat menampilkan sisa kapasitas baterai yang akurat kepada pengguna.
+
+    \item \textbf{Manajemen Daya Adaptif Berbasis Aktivitas (\textit{Firmware}):}
+    Untuk menekan konsumsi arus aktif dari mode transmisi 5\,Hz kontinu, \textit{firmware} perlu mengadopsi mekanisme \textit{adaptive BLE duty cycling}. Dengan memanfaatkan keluaran status pemakaian (\textit{wear-gating}) dari sensor FSR, mikrokontroler dapat otomatis memasuki mode \textit{deep sleep} ($< 15\,\mu\mathrm{A}$) saat insole dilepas, menurunkan laju pengiriman ke 1\,Hz saat duduk, dan mengaktifkan laju penuh hanya saat berjalan.
+
+    \item \textbf{Penguatan Mekanik Jalur Konduktor Fleksibel:}
+    Kabel penghubung matriks FSR di area telapak depan menuju modul kendali di tumit mengalami beban tekukan berulang. Diperlukan peralihan ke sirkuit cetak fleksibel (\textit{Flexible Printed Circuit} / FPC) berbahan poliamida dengan struktur penahan regangan (\textit{strain relief}) guna menjaga ketahanan fisik jalur sinyal jangka panjang.
+
+    \item \textbf{Persiapan Protokol Uji Klinis Berizin Etik (IRB):}
+    Sebagai tindak lanjut dari verifikasi logika berbasis emulasi pada Subbab~\ref{subsec:Skenario7}, diperlukan penyusunan protokol uji klinis observasional multi-subjek di klinik kaki diabetik rumah sakit setelah memperoleh persetujuan komite etik penelitian (IRB) untuk memvalidasi sensitivitas dan spesifisitas ambang risiko terhadap kejadian pra-ulkus pada pasien riil.
+\end{enumerate}

@@ -1,0 +1,10 @@
+{
+  "test_id": "TEST-11",
+  "name": "Continuous Battery Endurance Bench (300 mAh)",
+  "verdict": "CHARACTERIZED_2.97H",
+  "target_hours": 8.0,
+  "measured_hours": 2.974,
+  "effective_current_ma": 100.9,
+  "total_packets": 34575,
+  "timestamp": "2026-10-24_14-51-22"
+}

@@ -1,0 +1,37 @@
+{
+  "test_id": "TEST-07",
+  "name": "BLE Communication Latency & Interval Stability",
+  "device_id": "0E54705I22104142",
+  "duration_seconds": 60,
+  "total_packets_received": 268,
+  "buffer_drops": 0,
+  "nominal_interval_ms": 200.0,
+  "interval_stats_ms": {
+    "count": 267,
+    "mean": 225.5,
+    "min": 0.77,
+    "max": 405.03,
+    "p50": 224.99,
+    "p95": 315.11,
+    "p99": 360.78
+  },
+  "jitter_stats_ms": {
+    "count": 267,
+    "mean": 74.48,
+    "min": 19.74,
+    "max": 205.03,
+    "p50": 70.47,
+    "p95": 155.58,
+    "p99": 199.23
+  },
+  "pipeline_latency_stats_us": {
+    "count": 267,
+    "mean": 1269.26,
+    "min": 376.0,
+    "max": 1811.0,
+    "p50": 1296.0,
+    "p95": 1614.0,
+    "p99": 1779.0
+  },
+  "timestamp": "2026-10-24_14-15-23"
+}

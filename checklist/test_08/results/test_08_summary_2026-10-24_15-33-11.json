@@ -1,0 +1,20 @@
+{
+  "test_id": "TEST-08",
+  "name": "MPU 50 Hz Sampling Rate Verification & Dynamic Rate Throttling",
+  "verdict": "PASSED",
+  "target_device": "Smart_Insole_Left",
+  "total_packets_captured": 959,
+  "packets_50hz_phase": 828,
+  "packets_20hz_phase": 130,
+  "mean_interval_ms_50hz": 21.09,
+  "median_interval_ms_50hz": 29.7,
+  "p95_interval_ms_50hz": 30.68,
+  "min_interval_ms_50hz": 0.03,
+  "max_interval_ms_50hz": 89.76,
+  "mean_frequency_hz_50hz": 47.43,
+  "mean_jitter_ms_50hz": 13.82,
+  "throttling_tested": true,
+  "mean_frequency_hz_20hz": 22.09,
+  "mean_interval_ms_20hz": 45.28,
+  "timestamp": "2026-10-24_15-33-11"
+}

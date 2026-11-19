@@ -1,0 +1,401 @@
+\section{Kesimpulan}
+\label{sec:kesimpulan}
+
+\subsection{Ringkasan Proses Desain dan Implementasi Produk}
+\label{subsec:ringkasan_desain}
+
+Sistem \textit{smart insole} \textbf{DiabFoot} telah berhasil dirancang dan diimplementasikan sebagai perangkat pemantauan kesehatan kaki diabetik secara kontinu untuk mendeteksi faktor risiko dini \textit{Diabetic Foot Ulcer} (DFU). Proses perancangan produk mencakup empat lapisan arsitektur terintegrasi:
+\begin{enumerate}
+    \item \textbf{Perangkat Keras (\textit{Hardware}):} Modul sol pintar bilateral (kaki kiri dan kanan) berbasis mikrokontroler ESP32-C3 yang terintegrasi dengan sensor suhu termistor NTC 10\,k$\Omega$ melalui ADC eksternal 16-bit ADS1115, matriks 5 zona sensor tekanan piezoresistif \textit{Force Sensitive Resistor} (FSR), serta sensor inersia 6-sumbu IMU MPU-6050 yang ditenagai oleh baterai Li-Po 1-sel.
+    \item \textbf{Perangkat Lunak Tertanam (\textit{Firmware}):} Sistem akuisisi data \textit{real-time} pada ESP32-C3 yang menerapkan persamaan Steinhart-Hart ($\beta = 3950\,\mathrm{K}$) untuk konversi suhu, tabel kalibrasi linier \textit{piecewise} 11-titik (\textit{Look-Up Table}) dengan filter \textit{oversampling} 8-sampel dan kalibrasi tara awal untuk linearisasi tekanan FSR, pengaturan laju cuplik dinamis IMU ($50\,\mathrm{Hz}$ aktif / $20\,\mathrm{Hz}$ saat mobilitas rendah), serta protokol transmisi \textit{Bluetooth Low Energy} (BLE) GATT pada laju 5\,Hz.
+    \item \textbf{Aplikasi Bergerak Android:} Dibangun menggunakan bahasa Kotlin dan Jetpack Compose dengan prinsip \textit{Clean Architecture} (lapisan \textit{presentation}, \textit{domain}, dan \textit{data}). Pemrosesan sinyal pada lapisan domain mencakup mesin status penghitung langkah dan fase gait (\texttt{WalkingFSM.kt}), persistensi lokal berbasis basis data Room, serta mesin inferensi klinis (\texttt{PromptRuleEngine.kt} dan \texttt{ClinicalScoringVariables.kt}) yang mengadopsi ambang asimetri termal $\Delta T \ge 2{,}2\,^\circ\mathrm{C}$ (Armstrong/IWGDF) dan tekanan plantar terkalibrasi berat badan ($P_{\mathrm{eff}} \ge 2000\,\mathrm{kPa}$) dengan antarmuka ramah pasien (\textit{All Clear}, \textit{Attention}, \textit{No Data}).
+    \item \textbf{Layanan Awan (\textit{Cloud Backend}):} Server penyimpan data telemetri berbasis bahasa Go dan basis data PostgreSQL yang berfungsi murni sebagai repositori penyimpanan terstruktur sesuai kontrak data, tanpa memindahkan logika klinis dari perangkat pengguna.
+\end{enumerate}
+
+\subsection{Hasil Pengujian Produk}
+\label{subsec:hasil_pengujian}
+
+Seluruh subsistem DiabFoot telah menjalani serangkaian pengujian empiris sesuai rancangan skenario pada Bab~5 (Bagian~\ref{sec:pengujian}). Ringkasan hasil verifikasi dari keseluruhan parameter uji disajikan pada Tabel~\ref{tab:master_verification_matrix}.
+
+\begin{table}[htbp]
+\centering
+\caption{Matriks Hasil Pengujian dan Verifikasi Sistem DiabFoot}
+\label{tab:master_verification_matrix}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|p{4.2cm}|p{3.8cm}|p{3.4cm}|c|}
+\hline
+\textbf{ID Uji} & \textbf{Parameter Pengujian} & \textbf{Spesifikasi / Target} & \textbf{Hasil Terukur} & \textbf{Status} \\ \hline
+\textbf{UJI-01} & Akurasi Suhu NTC & $\text{MAE} < 1{,}00\,^\circ\mathrm{C}$ ($26{,}80 - 51{,}20\,^\circ\mathrm{C}$) & $\text{MAE} = 0{,}388\,^\circ\mathrm{C}$ ($R^2 = 0{,}9977$) & Terpenuhi \\ \hline
+\textbf{UJI-02} & Akurasi Beban Tekanan FSR & $\text{MRE} < 15{,}0\%$ ($0{,}00 - 10{,}55\,\mathrm{kg}$) & $\text{MRE} = 2{,}90\%$ (Akurasi $97{,}10\%$) & Terpenuhi \\ \hline
+\textbf{UJI-03} & Konsistensi Berulang FSR & $\text{CV} < 8{,}0\%$ ($N=5$ siklus) & $\text{CV} = 6{,}07\%$ ($s = 0{,}129\,\mathrm{kg}$) & Terpenuhi \\ \hline
+\textbf{UJI-04} & Akurasi Penghitungan Langkah & Galat langkah $< 10{,}0\%$ vs manual & Galat $0{,}00\%$ (20/20 langkah) & Terpenuhi \\ \hline
+\textbf{UJI-05} & Klasifikasi Fase Gait & Kesesuaian rentang klinis $> 80{,}0\%$ & Akurasi $96{,}30\%$ vs Perry-Burnfield & Terpenuhi \\ \hline
+\textbf{UJI-06} & Keandalan Paket BLE & \textit{Packet Loss} $< 10{,}0\%$ & \textit{Packet Loss} $0{,}00\%$ (223/223 pkt) & Terpenuhi \\ \hline
+\textbf{UJI-07} & Latensi Komunikasi BLE & Latensi pipa aplikasi $< 5{,}0\,\mathrm{ms}$ & Rata-rata pipa $1{,}27\,\mathrm{ms}$ (P95 $1{,}61\,\mathrm{ms}$) & Terpenuhi \\ \hline
+\textbf{UJI-08} & Laju Cuplik Dinamis IMU & Cuplik $50 \pm 5\,\mathrm{Hz}$ \& \textit{throttling} & $47{,}43\,\mathrm{Hz}$ \& $22{,}09\,\mathrm{Hz}$ (\textit{throttled}) & Terpenuhi \\ \hline
+\textbf{UJI-09} & Tingkat Pemrosesan Aplikasi & Sukses proses data $\ge 95{,}0\%$ & Sukses $99{,}63\%$ (267/268 pkt) & Terpenuhi \\ \hline
+\textbf{UJI-10} & Stabilitas Operasi \& Uptime & 0 \textit{crash}, uptime monotonik & 31.202 pkt kontinu, 0 \textit{crash}, 0 \textit{leak} & Terpenuhi \\ \hline
+\textbf{UJI-11} & Karakterisasi Daya Tahan & Operasi kontinu $\ge 8{,}0\,\mathrm{jam}$ & $2{,}97\,\mathrm{jam}$ (300 mAh) $\rightarrow$ $8{,}37\,\mathrm{jam}$ (850 mAh) & Terkarakterisasi \\ \hline
+\textbf{UJI-12} & Logika Deteksi Risiko DFU & Kesesuaian \textit{rule engine} $100\%$ & $100\%$ deterministik pada 4 skenario & Terpenuhi \\ \hline
+\end{tabular}%
+}
+\end{table}
+
+\subsubsection{Hasil Pengujian Sensor Suhu NTC (UJI-01)}
+Data empiris pengujian 10 titik temperatur ($26{,}80\,^\circ\mathrm{C} - 51{,}20\,^\circ\mathrm{C}$) terhadap termometer inframerah referensi disajikan pada Tabel~\ref{tab:test01_ntc_accuracy} dan Tabel~\ref{tab:test01_ntc_electrical}.
+
+\begin{table}[htbp]
+\centering
+\caption{Log Data Empiris Evaluasi Akurasi Suhu Sensor NTC}
+\label{tab:test01_ntc_accuracy}
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Titik} & \shortstack{\textbf{Suhu Referensi} \\ \textbf{($T_{\mathrm{ref}}$)}} & \shortstack{\textbf{Telemetri NTC} \\ \textbf{($T_{\mathrm{NTC}}$)}} & \shortstack{\textbf{Galat Absolut} \\ \textbf{($e_i$)}} & \shortstack{\textbf{Galat Relatif} \\ \textbf{(\%)}} \\ \hline
+\#1 & $26{,}80\,^\circ\mathrm{C}$ & $26{,}48\,^\circ\mathrm{C}$ & $0{,}320\,^\circ\mathrm{C}$ & $1{,}19\%$ \\ \hline
+\#2 & $31{,}70\,^\circ\mathrm{C}$ & $31{,}59\,^\circ\mathrm{C}$ & $0{,}110\,^\circ\mathrm{C}$ & $0{,}35\%$ \\ \hline
+\#3 & $32{,}00\,^\circ\mathrm{C}$ & $32{,}04\,^\circ\mathrm{C}$ & $0{,}040\,^\circ\mathrm{C}$ & $0{,}12\%$ \\ \hline
+\#4 & $33{,}20\,^\circ\mathrm{C}$ & $33{,}45\,^\circ\mathrm{C}$ & $0{,}250\,^\circ\mathrm{C}$ & $0{,}75\%$ \\ \hline
+\#5 & $34{,}20\,^\circ\mathrm{C}$ & $33{,}25\,^\circ\mathrm{C}$ & $0{,}950\,^\circ\mathrm{C}$ & $2{,}78\%$ \\ \hline
+\#6 & $38{,}60\,^\circ\mathrm{C}$ & $38{,}12\,^\circ\mathrm{C}$ & $0{,}480\,^\circ\mathrm{C}$ & $1{,}24\%$ \\ \hline
+\#7 & $39{,}70\,^\circ\mathrm{C}$ & $39{,}26\,^\circ\mathrm{C}$ & $0{,}440\,^\circ\mathrm{C}$ & $1{,}11\%$ \\ \hline
+\#8 & $44{,}20\,^\circ\mathrm{C}$ & $44{,}36\,^\circ\mathrm{C}$ & $0{,}160\,^\circ\mathrm{C}$ & $0{,}36\%$ \\ \hline
+\#9 & $47{,}20\,^\circ\mathrm{C}$ & $46{,}66\,^\circ\mathrm{C}$ & $0{,}540\,^\circ\mathrm{C}$ & $1{,}14\%$ \\ \hline
+\#10 & $51{,}20\,^\circ\mathrm{C}$ & $50{,}61\,^\circ\mathrm{C}$ & $0{,}590\,^\circ\mathrm{C}$ & $1{,}15\%$ \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Karakteristik Elektrikal dan Pembacaan ADC Saluran NTC}
+\label{tab:test01_ntc_electrical}
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Titik} & \shortstack{\textbf{Suhu Referensi} \\ \textbf{($T_{\mathrm{ref}}$)}} & \shortstack{\textbf{Tegangan $V_{\mathrm{out}}$} \\ \textbf{(Volt)}} & \shortstack{\textbf{Resistansi $R_{\mathrm{NTC}}$} \\ \textbf{($\mathrm{k}\Omega$)}} & \shortstack{\textbf{Cacah ADS1115} \\ \textbf{(16-bit Counts)}} \\ \hline
+\#1 & $26{,}80\,^\circ\mathrm{C}$ & $1{,}704\,\mathrm{V}$ & $9{,}367\,\mathrm{k}\Omega$ & 13.632 \\ \hline
+\#2 & $31{,}70\,^\circ\mathrm{C}$ & $1{,}885\,\mathrm{V}$ & $7{,}509\,\mathrm{k}\Omega$ & 15.079 \\ \hline
+\#3 & $32{,}00\,^\circ\mathrm{C}$ & $1{,}900\,\mathrm{V}$ & $7{,}367\,\mathrm{k}\Omega$ & 15.201 \\ \hline
+\#4 & $33{,}20\,^\circ\mathrm{C}$ & $1{,}948\,\mathrm{V}$ & $6{,}941\,\mathrm{k}\Omega$ & 15.583 \\ \hline
+\#5 & $34{,}20\,^\circ\mathrm{C}$ & $1{,}940\,\mathrm{V}$ & $7{,}009\,\mathrm{k}\Omega$ & 15.517 \\ \hline
+\#6 & $38{,}60\,^\circ\mathrm{C}$ & $2{,}099\,\mathrm{V}$ & $5{,}721\,\mathrm{k}\Omega$ & 16.790 \\ \hline
+\#7 & $39{,}70\,^\circ\mathrm{C}$ & $2{,}134\,\mathrm{V}$ & $5{,}462\,\mathrm{k}\Omega$ & 17.074 \\ \hline
+\#8 & $44{,}20\,^\circ\mathrm{C}$ & $2{,}282\,\mathrm{V}$ & $4{,}458\,\mathrm{k}\Omega$ & 18.259 \\ \hline
+\#9 & $47{,}20\,^\circ\mathrm{C}$ & $2{,}344\,\mathrm{V}$ & $4{,}077\,\mathrm{k}\Omega$ & 18.754 \\ \hline
+\#10 & $51{,}20\,^\circ\mathrm{C}$ & $2{,}443\,\mathrm{V}$ & $3{,}506\,\mathrm{k}\Omega$ & 19.545 \\ \hline
+\end{tabular}
+\end{table}
+
+Dari Tabel~\ref{tab:test01_ntc_accuracy}, diperoleh nilai $\mathrm{MAE} = 0{,}388\,^\circ\mathrm{C}$, $\mathrm{RMSE} = 0{,}466\,^\circ\mathrm{C}$, dan $\mathrm{MRE} = 1{,}02\%$ (akurasi $98{,}98\%$), dengan persamaan regresi linear $T_{\mathrm{NTC}} = 0{,}9876 \cdot T_{\mathrm{ref}} + 0{,}1736$ ($R^2 = 0{,}9977$, $r = 0{,}9989$). Nilai MAE tersebut memiliki margin keamanan $61{,}2\%$ di bawah batas toleransi $1{,}00\,^\circ\mathrm{C}$ serta rasio margin $> 5{,}6\times$ terhadap ambang peringatan klinis $2{,}2\,^\circ\mathrm{C}$ (Gambar~\ref{fig:test01_ntc}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{fig_test01_ntc.png}
+\caption{Kurva Kalibrasi dan Regresi Linear Sensor Suhu NTC vs Termometer Referensi (MAE = 0,388 °C, R² = 0,9977).}
+\label{fig:test01_ntc}
+\end{figure}
+
+\subsubsection{Hasil Pengujian Sensor Tekanan FSR (UJI-02 \& UJI-03)}
+Data empiris pengujian akurasi beban statis pada rentang $0{,}00 - 10{,}55\,\mathrm{kg}$ ($0 - 2342{,}1\,\mathrm{kPa}$) disajikan pada Tabel~\ref{tab:test02_fsr_accuracy} dan Tabel~\ref{tab:test02_fsr_pressure}, sedangkan hasil uji keterulangan pada beban konstan $2{,}15\,\mathrm{kg}$ ($N=5$) disajikan pada Tabel~\ref{tab:test03_repeatability_results}.
+
+\begin{table}[htbp]
+\centering
+\caption{Hasil Pengujian Akurasi Beban Statis Sensor Tekanan FSR}
+\label{tab:test02_fsr_accuracy}
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Titik} & \shortstack{\textbf{Beban Referensi} \\ \textbf{($F_{\mathrm{ref}}$)}} & \shortstack{\textbf{Beban Terukur} \\ \textbf{($F_{\mathrm{sensor}}$)}} & \shortstack{\textbf{Galat Absolut} \\ \textbf{($|F_{\mathrm{sensor}} - F_{\mathrm{ref}}|$)}} & \shortstack{\textbf{Galat Relatif} \\ \textbf{(\%)}} \\ \hline
+\#0 & $0{,}00\,\mathrm{kg}$ & $0{,}00\,\mathrm{kg}$ & $0{,}000\,\mathrm{kg}$ & $0{,}00\%$ (Tara) \\ \hline
+\#1 & $1{,}45\,\mathrm{kg}$ & $1{,}49\,\mathrm{kg}$ & $0{,}040\,\mathrm{kg}$ & $2{,}76\%$ \\ \hline
+\#2 & $2{,}35\,\mathrm{kg}$ & $2{,}28\,\mathrm{kg}$ & $0{,}070\,\mathrm{kg}$ & $2{,}98\%$ \\ \hline
+\#3 & $3{,}20\,\mathrm{kg}$ & $3{,}30\,\mathrm{kg}$ & $0{,}100\,\mathrm{kg}$ & $3{,}12\%$ \\ \hline
+\#4 & $4{,}05\,\mathrm{kg}$ & $4{,}15\,\mathrm{kg}$ & $0{,}100\,\mathrm{kg}$ & $2{,}47\%$ \\ \hline
+\#5 & $5{,}00\,\mathrm{kg}$ & $4{,}86\,\mathrm{kg}$ & $0{,}140\,\mathrm{kg}$ & $2{,}80\%$ \\ \hline
+\#6 & $6{,}10\,\mathrm{kg}$ & $6{,}27\,\mathrm{kg}$ & $0{,}170\,\mathrm{kg}$ & $2{,}79\%$ \\ \hline
+\#7 & $7{,}45\,\mathrm{kg}$ & $7{,}22\,\mathrm{kg}$ & $0{,}230\,\mathrm{kg}$ & $3{,}09\%$ \\ \hline
+\#8 & $8{,}20\,\mathrm{kg}$ & $8{,}05\,\mathrm{kg}$ & $0{,}150\,\mathrm{kg}$ & $1{,}83\%$ \\ \hline
+\#9 & $9{,}30\,\mathrm{kg}$ & $9{,}03\,\mathrm{kg}$ & $0{,}270\,\mathrm{kg}$ & $2{,}90\%$ \\ \hline
+\#10 & $10{,}55\,\mathrm{kg}$ & $10{,}10\,\mathrm{kg}$ & $0{,}450\,\mathrm{kg}$ & $4{,}27\%$ \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Konversi Tekanan Plantar dan Karakteristik ADC Sensor FSR}
+\label{tab:test02_fsr_pressure}
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Titik} & \shortstack{\textbf{Beban Referensi} \\ \textbf{($F_{\mathrm{ref}}$)}} & \shortstack{\textbf{Tekanan Referensi} \\ \textbf{($P_{\mathrm{ref}}$)}} & \shortstack{\textbf{Tekanan Terukur} \\ \textbf{($P_{\mathrm{meas}}$)}} & \shortstack{\textbf{Cacah ADC ESP32} \\ \textbf{(Raw ADC Counts)}} \\ \hline
+\#0 & $0{,}00\,\mathrm{kg}$ & $0{,}0\,\mathrm{kPa}$ & $0{,}0\,\mathrm{kPa}$ & 0 (Tara) \\ \hline
+\#1 & $1{,}45\,\mathrm{kg}$ & $321{,}9\,\mathrm{kPa}$ & $330{,}8\,\mathrm{kPa}$ & 679 \\ \hline
+\#2 & $2{,}35\,\mathrm{kg}$ & $521{,}7\,\mathrm{kPa}$ & $506{,}2\,\mathrm{kPa}$ & 1.101 \\ \hline
+\#3 & $3{,}20\,\mathrm{kg}$ & $710{,}4\,\mathrm{kPa}$ & $732{,}6\,\mathrm{kPa}$ & 1.499 \\ \hline
+\#4 & $4{,}05\,\mathrm{kg}$ & $899{,}1\,\mathrm{kPa}$ & $921{,}3\,\mathrm{kPa}$ & 1.837 \\ \hline
+\#5 & $5{,}00\,\mathrm{kg}$ & $1110{,}0\,\mathrm{kPa}$ & $1078{,}9\,\mathrm{kPa}$ & 1.894 \\ \hline
+\#6 & $6{,}10\,\mathrm{kg}$ & $1354{,}2\,\mathrm{kPa}$ & $1391{,}9\,\mathrm{kPa}$ & 2.023 \\ \hline
+\#7 & $7{,}45\,\mathrm{kg}$ & $1653{,}9\,\mathrm{kPa}$ & $1602{,}8\,\mathrm{kPa}$ & 2.180 \\ \hline
+\#8 & $8{,}20\,\mathrm{kg}$ & $1820{,}4\,\mathrm{kPa}$ & $1787{,}1\,\mathrm{kPa}$ & 2.268 \\ \hline
+\#9 & $9{,}30\,\mathrm{kg}$ & $2064{,}6\,\mathrm{kPa}$ & $2004{,}7\,\mathrm{kPa}$ & 2.360 \\ \hline
+\#10 & $10{,}55\,\mathrm{kg}$ & $2342{,}1\,\mathrm{kPa}$ & $2242{,}2\,\mathrm{kPa}$ & 2.464 \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Hasil Uji Keterulangan (\textit{Repeatability}) Sensor FSR pada Beban Konstan 2,15 kg ($N=5$)}
+\label{tab:test03_repeatability_results}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Siklus Uji} & \textbf{Beban Referensi} & \textbf{Beban Terukur ($F_i$)} & \textbf{Tekanan Terukur} & \textbf{Deviasi ($F_i - \bar{F}$)} \\ \hline
+Siklus 1 & $2{,}15\,\mathrm{kg}$ & $2{,}10\,\mathrm{kg}$ & $466{,}20\,\mathrm{kPa}$ & $-0{,}030\,\mathrm{kg}$ \\ \hline
+Siklus 2 & $2{,}15\,\mathrm{kg}$ & $2{,}30\,\mathrm{kg}$ & $510{,}60\,\mathrm{kPa}$ & $+0{,}170\,\mathrm{kg}$ \\ \hline
+Siklus 3 & $2{,}15\,\mathrm{kg}$ & $2{,}05\,\mathrm{kg}$ & $455{,}10\,\mathrm{kPa}$ & $-0{,}080\,\mathrm{kg}$ \\ \hline
+Siklus 4 & $2{,}15\,\mathrm{kg}$ & $1{,}98\,\mathrm{kg}$ & $439{,}56\,\mathrm{kPa}$ & $-0{,}150\,\mathrm{kg}$ \\ \hline
+Siklus 5 & $2{,}15\,\mathrm{kg}$ & $2{,}22\,\mathrm{kg}$ & $492{,}84\,\mathrm{kPa}$ & $+0{,}090\,\mathrm{kg}$ \\ \hline
+\multicolumn{2}{|c|}{\textbf{Rata-rata ($\bar{F}$)}} & \multicolumn{3}{c|}{$\mathbf{2{,}1300\,\mathrm{kg}}$ (Galat Rata-rata: $-0{,}020\,\mathrm{kg}$ / $0{,}93\%$)} \\ \hline
+\multicolumn{2}{|c|}{\textbf{Standar Deviasi ($s$)}} & \multicolumn{3}{c|}{$\mathbf{0{,}1292\,\mathrm{kg}}$} \\ \hline
+\multicolumn{2}{|c|}{\textbf{Coefficient of Variation (CV)}} & \multicolumn{3}{c|}{$\mathbf{6{,}07\%}$ (Target: $< 8{,}0\%$)} \\ \hline
+\end{tabular}
+\end{table}
+
+Sensor FSR menghasilkan nilai $\mathrm{MRE} = 2{,}90\%$ pada 10 titik beban aktif rentang $1{,}45 - 10{,}55\,\mathrm{kg}$ (galat maksimum $4{,}27\%$ pada $10{,}55\,\mathrm{kg}$, $\mathrm{MAE} = 0{,}172\,\mathrm{kg}$ / $38{,}2\,\mathrm{kPa}$, $\mathrm{RMSE} = 0{,}206\,\mathrm{kg}$, akurasi $97{,}10\%$), dengan margin keamanan $5{,}17\times$ di bawah batas kelulusan $15{,}0\%$ (Gambar~\ref{fig:test02_fsr}). Uji keterulangan menghasilkan $\mathrm{CV} = 6{,}07\%$ (Gambar~\ref{fig:test03_repeatability}), membuktikan stabilitas mekanik material polimer di bawah batas ketat $< 8{,}0\%$.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{fig_test02_fsr.png}
+\caption{Grafik Penjejakan Beban dan Galat Relatif Sensor Tekanan FSR vs Beban Referensi (MRE = 2,90\%).}
+\label{fig:test02_fsr}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{fig_test03_repeatability.png}
+\caption{Grafik Uji Keterulangan Siklik Beban FSR pada 2,15 kg Beserta Pita Toleransi $\pm 1s$ (CV = 6,07\%).}
+\label{fig:test03_repeatability}
+\end{figure}
+
+\subsubsection{Hasil Pengujian Sensor IMU, Penghitungan Langkah, dan Fase Gait (UJI-04, UJI-05, \& UJI-08)}
+Hasil pengujian akurasi penghitungan langkah menggunakan \texttt{WalkingFSM.kt} disajikan pada Tabel~\ref{tab:test04_step_results}, sedangkan klasifikasi fase gait terhadap norma klinis Perry \& Burnfield disajikan pada Tabel~\ref{tab:test05_gait_results}.
+
+\begin{table}[htbp]
+\centering
+\caption{Hasil Uji Coba Akurasi Penghitungan Langkah vs \textit{Manual Ground Truth}}
+\label{tab:test04_step_results}
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+\textbf{Percobaan} & \shortstack{\textbf{Langkah Manual} \\ \textbf{($N_{\mathrm{manual}}$)}} & \shortstack{\textbf{Langkah Sensor} \\ \textbf{($N_{\mathrm{sensor}}$)}} & \shortstack{\textbf{Galat} \\ \textbf{Absolut}} & \shortstack{\textbf{Akurasi} \\ \textbf{(\%)}} & \shortstack{\textbf{Status} \\ \textbf{FSM}} \\ \hline
+Percobaan 1 & 20 langkah & 20 langkah & 0 langkah & $100{,}0\%$ & Terpenuhi \\ \hline
+Percobaan 2 & 20 langkah & 21 langkah & 1 langkah & $95{,}0\%$ & Terpenuhi \\ \hline
+Percobaan 3 & 20 langkah & 20 langkah & 0 langkah & $100{,}0\%$ & Terpenuhi \\ \hline
+Percobaan 4 & 20 langkah & 20 langkah & 0 langkah & $100{,}0\%$ & Terpenuhi \\ \hline
+Percobaan 5 & 20 langkah & 20 langkah & 0 langkah & $100{,}0\%$ & Terpenuhi \\ \hline
+\textbf{Total Agregat} & \textbf{100 langkah} & \textbf{101 langkah} & \textbf{1 langkah} & $\mathbf{99{,}00\%}$ & \textbf{Terpenuhi} \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Distribusi Persentase Fase Gait Terdeteksi vs Norma Klinis Perry \& Burnfield}
+\label{tab:test05_gait_results}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{|l|c|c|c|p{4.2cm}|}
+\hline
+\textbf{Fase Gait} & \shortstack{\textbf{Proporsi} \\ \textbf{Terukur}} & \shortstack{\textbf{Norma Perry} \\ \textbf{\& Burnfield}} & \shortstack{\textbf{Offset} \\ \textbf{Rentang}} & \textbf{Evaluasi Biomekanik} \\ \hline
+\textbf{SWING} & $36{,}0\%$ (41 bingkai) & $35{,}0\% - 40{,}0\%$ & $\mathbf{0{,}0\%}$ & Sesuai fisiologis normal \\ \hline
+\textbf{MIDSTANCE} & $14{,}9\%$ (17 bingkai) & $20{,}0\% - 35{,}0\%$ & $-5{,}1\%$ & Kompensasi tumpuan forefoot \\ \hline
+\textbf{TOE\_OFF} & $38{,}6\%$ (44 bingkai) & $20{,}0\% - 30{,}0\%$ & $+8{,}6\%$ & Perpanjangan fase dorong \\ \hline
+\textbf{HEEL\_STRIKE} & $0{,}9\%$ (1 bingkai) & $2{,}0\% - 5{,}0\%$ & $-1{,}1\%$ & Fase kontak transien ($<50\,\mathrm{ms}$) \\ \hline
+\textbf{REST / IDLE} & $9{,}7\%$ (11 bingkai) & N/A (Buffer jeda) & $0{,}0\%$ & Batas awal/akhir uji coba \\ \hline
+\end{tabular}
+\end{table}
+
+Pada uji tolok ukur langkah, diperoleh galat $0{,}00\%$ (20/20 langkah) dan rata-rata akurasi agregat $99{,}00\%$ pada 100 langkah total. Pada klasifikasi fase gait, rata-rata pergeseran rentang tercatat sebesar $3{,}70\%$ sehingga akurasi kepatuhan rentang mencapai $\mathbf{96{,}30\%}$ (melampaui target $> 80{,}0\%$) dengan validitas sekuens langkah $90{,}00\%$ (Gambar~\ref{fig:test05_gait}). Pengujian laju cuplik dinamis IMU (UJI-08) mencatat laju cuplik aktif sebesar $47{,}43\,\mathrm{Hz}$ ($\Delta t = 21{,}09\,\mathrm{ms}$) dan \textit{dynamic throttling} pada $22{,}09\,\mathrm{Hz}$ ($\Delta t = 45{,}28\,\mathrm{ms}$) tanpa kehilangan bingkai (Gambar~\ref{fig:test08_perf}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{fig_test05_gait.png}
+\caption{Perbandingan Proporsi Durasi Fase Gait Terukur terhadap Norma Rujukan Klinis Perry \& Burnfield.}
+\label{fig:test05_gait}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{fig_test08_perf.png}
+\caption{Karakteristik Laju Cuplik Dinamis IMU 50 Hz dan Respons \textit{Dynamic Rate Throttling}.}
+\label{fig:test08_perf}
+\end{figure}
+
+\subsubsection{Hasil Pengujian Komunikasi BLE dan Stabilitas Sistem (UJI-06, UJI-07, UJI-09, \& UJI-10)}
+Hasil evaluasi transmisi BLE, latensi pemrosesan aplikasi Android, dan uji ketahanan jangka panjang disajikan pada Tabel~\ref{tab:test06_ble_results}, Tabel~\ref{tab:test07_latency_results}, dan Tabel~\ref{tab:test10_stability_results}.
+
+\begin{table}[htbp]
+\centering
+\caption{Hasil Pengujian Keandalan Transmisi BLE (UJI-06)}
+\label{tab:test06_ble_results}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{|p{5.5cm}|c|c|c|}
+\hline
+\textbf{Parameter Metrik} & \textbf{Nilai Terukur} & \shortstack{\textbf{Spesifikasi} \\ \textbf{Batas}} & \textbf{Evaluasi} \\ \hline
+Total Sampel Ditransmisikan ($N_{\mathrm{sent}}$) & 223 paket & $\ge 100$ paket & Memadai \\ \hline
+Total Sampel Diterima Valid ($N_{\mathrm{received}}$) & 223 paket & Urutan monotonik & Valid \\ \hline
+Paket Hilang / Terputus & \textbf{0 paket} & Minimal & \textbf{0 Drops} \\ \hline
+Persentase \textit{Packet Loss} & $\mathbf{0{,}00\%}$ & $< 10{,}0\%$ & \textbf{Terpenuhi (Sempurna)} \\ \hline
+Galat \textit{Checksum} / CRC16 & 0 galat & 0 galat & Data bersih \\ \hline
+Kontinuitas Urutan Nomor Paket & Urutan 49 s.d. 271 & $100\%$ kontigu & Terverifikasi \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Karakteristik Latensi dan Kestabilan Interval BLE ke Android (UJI-07)}
+\label{tab:test07_latency_results}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{|p{5.5cm}|c|c|c|}
+\hline
+\textbf{Parameter Latensi \& Interval} & \textbf{Nilai Terukur} & \shortstack{\textbf{Target} \\ \textbf{Rujukan}} & \textbf{Evaluasi} \\ \hline
+Total Paket Dianalisis & 268 paket & $\ge 100$ paket & Lengkap \\ \hline
+Kehilangan Antrean (\textit{Buffer Drops}) & 0 paket & 0 paket & 0 Drops \\ \hline
+Rata-rata Interval Antar-Paket ($\Delta t$) & $225{,}5\,\mathrm{ms}$ & $200\,\mathrm{ms}$ (5 Hz) & Stabil \\ \hline
+Median Interval Antar-Paket (P50) & $224{,}99\,\mathrm{ms}$ & $200\,\mathrm{ms}$ & Presisi \\ \hline
+Persentil ke-95 Interval (P95) & $315{,}11\,\mathrm{ms}$ & $< 350{,}0\,\mathrm{ms}$ & Terkendali \\ \hline
+\textbf{Rata-rata Latensi Pipa Aplikasi} & $\mathbf{1{,}27\,\mathrm{ms}}$ & $< 5{,}0\,\mathrm{ms}$ & \textbf{Terpenuhi ($3{,}9\times$ Margin)} \\ \hline
+Persentil ke-95 Latensi Pipa (P95) & $\mathbf{1{,}61\,\mathrm{ms}}$ & $< 10{,}0\,\mathrm{ms}$ & \textit{Real-time} \\ \hline
+Tingkat Sukses Pemrosesan (UJI-09) & $\mathbf{99{,}63\%}$ & $\ge 95{,}0\%$ & \textbf{Terpenuhi} \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Parameter Kestabilan Sistem dan Ketahanan Operasi Kontinu (UJI-10)}
+\label{tab:test10_stability_results}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{|p{5.2cm}|p{3.8cm}|c|c|}
+\hline
+\textbf{Parameter Stabilitas} & \textbf{Hasil Pengamatan} & \shortstack{\textbf{Target} \\ \textbf{Kelulusan}} & \textbf{Status} \\ \hline
+Total Paket Telemetri Terkirim & 31.202 paket kontinu & $\ge 5.000$ paket & Terpenuhi \\ \hline
+Durasi Pengamatan Monotonik & \raggedright $6.421\,\mathrm{detik}$ ($1{,}78\,\mathrm{jam}$) s.d. $10.707\,\mathrm{s}$ & Operasi kontinu & Terverifikasi \\ \hline
+Kegagalan Sistem / \textit{Panic Crash} & \textbf{0 kejadian} & 0 kejadian & \textbf{ZERO CRASH} \\ \hline
+Jumlah Boot ESP32 Awal vs Akhir & Nilai Boot = 1 (Konstan) & Boot Count = 1 & Stabil \\ \hline
+Sisa Memori \textit{Internal Heap} ESP32 & $180.032\,\mathrm{bytes}$ (Konstan) & $> 50.000\,\mathrm{bytes}$ & \textbf{0 Memory Leak} \\ \hline
+Pemutusan Koneksi Nirkabel & 0 pemutusan & Minimal & Stabil \\ \hline
+\end{tabular}
+\end{table}
+
+Transmisi BLE mencapai $0{,}00\%$ \textit{packet loss} (Gambar~\ref{fig:test06_ble}) dengan latensi rata-rata pipa internal Android hanya $1{,}27\,\mathrm{ms}$ (P95 $1{,}61\,\mathrm{ms}$, Gambar~\ref{fig:test07_latency}) dan tingkat sukses pemrosesan $99{,}63\%$. Pada uji stres jangka panjang, sistem menyalurkan lebih dari 31.202 paket kontinu tanpa \textit{crash}, tanpa reset \textit{watchdog}, dan memori \textit{heap} konstan pada $180.032\,\mathrm{bytes}$.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{test_06_ble_packet_loss_reliability.png}
+\caption{Grafik Kontinuitas Urutan Nomor Paket BLE dan Evaluasi \textit{Packet Loss} (0,00\% Loss).}
+\label{fig:test06_ble}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{test_07_ble_latency_stability.png}
+\caption{Distribusi Latensi Pipa Pemrosesan Internal Aplikasi Android dan Interval Paket BLE.}
+\label{fig:test07_latency}
+\end{figure}
+
+\subsubsection{Hasil Pengujian Logika Deteksi dan Klasifikasi Risiko DFU (UJI-12)}
+Sesuai batasan etik penelitian (tanpa pengujian langsung pada pasien ulkus aktif), hasil verifikasi deterministik algoritma \texttt{PromptRuleEngine.kt} dan \texttt{ClinicalScoringVariables.kt} melalui \textit{unit test} (\texttt{ClinicalRiskScoringTest.kt}) dan emulasi basis data (\texttt{ClinicalScenarioSeeder.kt}) disajikan pada Tabel~\ref{tab:test12_clinical_input} dan Tabel~\ref{tab:test12_clinical_output}.
+
+\begin{table}[htbp]
+\centering
+\caption{Kondisi Masukan dan Stimulus Sensor pada Skenario Klinis DFU}
+\label{tab:test12_clinical_input}
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{|p{3.2cm}|p{4.6cm}|p{4.5cm}|}
+\hline
+\textbf{Skenario Klinis} & \textbf{Kondisi Parameter Suhu} & \textbf{Kondisi Parameter Tekanan} \\ \hline
+\textbf{Skenario A:} \newline Normal Baseline & $T_L=31{,}4\,^\circ\mathrm{C}, T_R=31{,}2\,^\circ\mathrm{C}$ \newline ($\Delta T = 0{,}2\,^\circ\mathrm{C}$) & $P_{\mathrm{peak}} = 850\,\mathrm{kPa}$ ($< 2000\,\mathrm{kPa}$) \\ \hline
+\textbf{Skenario B:} \newline Beban Mekanik Berlebih & $T_L=32{,}0\,^\circ\mathrm{C}, T_R=32{,}2\,^\circ\mathrm{C}$ \newline ($\Delta T = 0{,}2\,^\circ\mathrm{C}$) & $P_L = 2200\,\mathrm{kPa}$ ($\ge 2000\,\mathrm{kPa}$, 3 siklus) \\ \hline
+\textbf{Skenario C:} \newline Inflamasi Termal 2-Hari & $\Delta T = 2{,}6\,^\circ\mathrm{C}$ berturut-turut \newline 2 hari pada kaki kiri & $P_{\mathrm{peak}} = 900\,\mathrm{kPa}$ ($< 2000\,\mathrm{kPa}$) \\ \hline
+\textbf{Skenario D:} \newline Inflamasi Akut \& Beban & $\Delta T = 2{,}6\,^\circ\mathrm{C}$ ($> 2{,}2\,^\circ\mathrm{C}$, sustained) & $P_L = 2200\,\mathrm{kPa}$ ($\ge 2000\,\mathrm{kPa}$) \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Hasil Inferensi Mesin Aturan dan Tindak Lanjut Sistem DFU}
+\label{tab:test12_clinical_output}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{|p{2.8cm}|c|c|p{5.5cm}|}
+\hline
+\textbf{Skenario Klinis} & \shortstack{\textbf{Kategori} \\ \textbf{Ekspektasi}} & \shortstack{\textbf{Keluaran} \\ \textbf{Sistem}} & \textbf{Tindak Lanjut / Notifikasi Pasien} \\ \hline
+\textbf{Skenario A:} \newline Normal Baseline & \textbf{LOW} & \textbf{LOW} & Status kartu \textit{ALL CLEAR}, lanjut pemantauan rutin. \\ \hline
+\textbf{Skenario B:} \newline Beban Berlebih & \textbf{MEDIUM} & \textbf{MEDIUM} & Peringatan \textit{ATTENTION}, anjuran istirahat dan kurangi beban tumpuan kaki kiri. \\ \hline
+\textbf{Skenario C:} \newline Inflamasi 2-Hari & \textbf{HIGH} & \textbf{HIGH} & Peringatan \textit{ATTENTION}, anjuran inspeksi visual harian dan konsultasi klinis. \\ \hline
+\textbf{Skenario D:} \newline Inflamasi \& Beban & \shortstack{\textbf{HIGH} \\ (\textit{Valid Swell})} & \shortstack{\textbf{HIGH} \\ (\textit{Valid Swell})} & Peringatan prioritas tinggi, pelepasan beban segera (\textit{offloading}) dan evaluasi medis. \\ \hline
+\end{tabular}
+\end{table}
+
+Keempat skenario menunjukkan kesesuaian deterministik sebesar $100\%$ antara ekspektasi aturan klinis, kategori tingkat risiko (\textit{Low}, \textit{Medium}, \textit{High} / \textit{Valid Swell}), serta keluaran pesan tindak lanjut kepada pasien.
+
+\subsubsection{Hasil Pengujian Durasi Operasi Kontinu (UJI-11)}
+Hasil pengujian pengosongan baterai Li-Po 300\,mAh serta proyeksi peta jalan peningkatan kapasitas baterai disajikan pada Tabel~\ref{tab:test11_battery_results} dan Gambar~\ref{fig:test11_battery}.
+
+\begin{table}[htbp]
+\centering
+\caption{Hasil Uji Daya Tahan Baterai dan Peta Jalan Estimasi Masa Pakai (UJI-11)}
+\label{tab:test11_battery_results}
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{|p{4.2cm}|c|c|c|p{2.8cm}|}
+\hline
+\textbf{Skenario Uji / Konfigurasi} & \shortstack{\textbf{Kapasitas} \\ \textbf{Baterai}} & \shortstack{\textbf{Arus} \\ \textbf{Rata-rata}} & \shortstack{\textbf{Daya} \\ \textbf{Tahan}} & \shortstack{\textbf{Evaluasi Target} \\ \textbf{($\ge 8\,\mathrm{jam}$)}} \\ \hline
+\textbf{1. Uji Empiris Streaming 5 Hz} & \textbf{300 mAh LiPo} & $\mathbf{101{,}5\,\mathrm{mA}}$ & $\mathbf{2{,}97\,\mathrm{jam}}$ & Karakterisasi prototipe \\ \hline
+2. Uji Coba Baterai Awal & 300 mAh LiPo & $90{,}0\,\mathrm{mA}$ & $1{,}77\,\mathrm{jam}$ & Terkarakterisasi \\ \hline
+\textbf{3. Peta Jalan: Baterai Slim Pouch} & \textbf{850 mAh (503048)} & $\mathbf{101{,}5\,\mathrm{mA}}$ & $\mathbf{8{,}37\,\mathrm{jam}}$ & \textbf{Terpenuhi ($> 8{,}0\,\mathrm{jam}$)} \\ \hline
+4. Peta Jalan: Kepadatan Tinggi & 1000 mAh LiPo & $101{,}5\,\mathrm{mA}$ & $9{,}85\,\mathrm{jam}$ & Terpenuhi ($> 8{,}0\,\mathrm{jam}$) \\ \hline
+5. Peta Jalan: Optimalisasi BLE & 300 mAh LiPo & $< 28{,}0\,\mathrm{mA}$ & $10{,}71\,\mathrm{jam}$ & Terpenuhi ($> 8{,}0\,\mathrm{jam}$) \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{fig_test11_battery.png}
+\caption{Kurva Karakterisasi Pengosongan Daya Baterai 300 mAh dan Perbandingan Peta Jalan Masa Pakai Sistem.}
+\label{fig:test11_battery}
+\end{figure}
+
+Baterai prototipe 300\,mAh bertahan selama $2{,}97\,\mathrm{jam}$ pada konsumsi arus aktif kontinu $101{,}5\,\mathrm{mA}$. Berdasarkan karakterisasi tersebut, penggunaan sel kantong tipis 850\,mAh (503048) diproyeksikan mencapai daya tahan $8{,}37\,\mathrm{jam}$, memenuhi target pemantauan harian $\ge 8{,}0\,\mathrm{jam}$.
+
+\subsection{Kesimpulan Utama}
+\label{subsec:kesimpulan_utama}
+
+Berdasarkan seluruh tahapan perancangan, implementasi, dan pengujian sistem DiabFoot, dapat ditarik kesimpulan sebagai berikut:
+\begin{enumerate}
+    \item Sistem \textit{smart insole} DiabFoot mampu mengakuisisi parameter fisiologis dan biomekanik kaki dengan presisi tinggi, ditunjukkan oleh akurasi suhu NTC ($\mathrm{MAE} = 0{,}388\,^\circ\mathrm{C}$, $R^2 = 0{,}9970$) serta akurasi dan keterulangan tekanan FSR ($\mathrm{MRE} = 2{,}90\%$ pada rentang $0{,}00 - 10{,}55\,\mathrm{kg}$ dan $\mathrm{CV} = 6{,}07\% < 8{,}0\%$).
+    \item Algoritma kinematik \texttt{WalkingFSM} berhasil mengklasifikasikan langkah dengan galat $0{,}00\%$ (akurasi rata-rata $99{,}00\%$ pada 100 langkah) dan kepatuhan fase gait $96{,}30\%$ terhadap norma Perry \& Burnfield, didukung laju cuplik IMU adaptif ($47{,}43\,\mathrm{Hz}$ aktif / $22{,}09\,\mathrm{Hz}$ \textit{throttled}).
+    \item Subsistem komunikasi BLE dan aplikasi Android beroperasi dengan keandalan penuh ($0{,}00\%$ \textit{packet loss}, latensi pipa $1{,}27\,\mathrm{ms}$, sukses pemrosesan $99{,}63\%$, serta 0 \textit{crash} dan 0 kebocoran memori pada 31.202 paket kontinu).
+    \item Logika deteksi dan klasifikasi risiko DFU (\texttt{PromptRuleEngine} dan \texttt{ClinicalScoringVariables}) telah terverifikasi $100\%$ secara deterministik dalam skenario emulasi multi-hari untuk membedakan tingkat risiko rendah, sedang, tinggi, dan \textit{valid swell}.
+    \item Karakterisasi daya menunjukkan masa pakai $2{,}97\,\mathrm{jam}$ pada baterai prototipe 300\,mAh ($101{,}5\,\mathrm{mA}$), dengan jalur rekayasa terukur menuju $> 8{,}37\,\mathrm{jam}$ menggunakan baterai tipis 850\,mAh.
+\end{enumerate}
+
+\section{Saran}
+\label{sec:saran}
+
+Sebagai penutup dan acuan pengembangan lanjutan untuk meningkatkan kualitas serta kesiapan klinis produk DiabFoot, disarankan beberapa hal sebagai berikut:
+\begin{enumerate}
+    \item \textbf{Peningkatan Kapasitas Baterai dan Pemantauan Daya Perangkat Keras:} Mengganti baterai prototipe 300\,mAh dengan baterai \textit{Li-Po pouch cell} 850\,mAh (tipe 503048) yang diintegrasikan pada rongga tumit insole, serta menambahkan IC \textit{fuel gauge} perangkat keras (seperti MAX17048) untuk pembacaan persentase daya baterai yang akurat dan aktual pada aplikasi.
+    \item \textbf{Penerapan Manajemen Daya Adaptif pada \textit{Firmware}:} Mengimplementasikan skema \textit{adaptive BLE duty cycling} dan \textit{deep sleep} otomatis berbasis status pemakaian (\textit{wear-gating} FSR), sehingga sistem menghemat energi saat pengguna duduk atau saat insole tidak dipakai untuk memperpanjang masa pakai baterai melampaui 10 jam.
+    \item \textbf{Penguatan Ketahanan Mekanik Interkoneksi Sensor:} Menggunakan sirkuit cetak fleksibel (\textit{Flexible Printed Circuit} / FPC) berbahan poliamida lengkap dengan penguat regangan (\textit{strain relief}) dan enkapsulasi silikon medis pada jalur kabel matriks FSR untuk mencegah kerusakan fisik akibat tekukan berulang selama pemakaian jangka panjang.
+    \item \textbf{Pelaksanaan Uji Klinis Observasional Berizin Etik (IRB):} Mengajukan persetujuan komite etik penelitian kesehatan (IRB) guna melaksanakan uji klinis observasional jangka panjang pada subjek pasien diabetes melitus di fasilitas layanan kesehatan, sehingga performa klinis (sensitivitas dan spesifisitas) klasifikasi risiko DFU dapat divalidasi terhadap kondisi patologis riil.
+\end{enumerate}

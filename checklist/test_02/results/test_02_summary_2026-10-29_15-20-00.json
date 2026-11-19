@@ -1,0 +1,20 @@
+{
+  "test_id": "TEST-02",
+  "name": "Plantar Pressure FSR Mean Relative Error (MRE) Dynamic Load Benchmark",
+  "target_device": "Smart_Insole_Left",
+  "sensor": "Piezoresistive FSR (5-Zone Matrix: Hallux, MTH1, MTH2, MTH4, Heel)",
+  "reference_instrument": "Precision Calibrated Physical Reference Weights",
+  "test_date": "2026-10-29 15:20:00",
+  "sample_count": 5,
+  "load_range_min_kg": 3.20,
+  "load_range_max_kg": 10.55,
+  "load_range_min_kpa": 710.4,
+  "load_range_max_kpa": 2342.1,
+  "mre_pct": 2.90,
+  "mae_kg": 0.188,
+  "rmse_kg": 0.230,
+  "accuracy_pct": 97.10,
+  "target_threshold_mre_pct": 15.00,
+  "margin_pass_factor": 5.17,
+  "verdict": "PASSED"
+}

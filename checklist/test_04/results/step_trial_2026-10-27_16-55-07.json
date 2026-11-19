@@ -1,0 +1,23 @@
+{
+  "test_id": "TEST-04",
+  "test_name": "Step Counting Accuracy vs Manual Ground Truth",
+  "timestamp": "2026-10-27_16-55-07",
+  "device": {
+    "side": "Right",
+    "name": "Smart_Insole_Right",
+    "service_uuid": "4fa2c732-ca9a-4c20-9492-c167df3c942c",
+    "char_uuid": "beb5483e-36e1-4688-b7f5-ea07361b26c9",
+    "address": "6B26DF96-422E-0DDF-26CB-C50EA51F6DDD",
+    "rssi": -79
+  },
+  "manual_target_steps": 20,
+  "measured_fsm_steps": 7,
+  "absolute_error_steps": 13,
+  "relative_error_percent": 65.0,
+  "passing_threshold_percent": 10.0,
+  "status": "FAILED",
+  "trial_duration_seconds": 29.19,
+  "cadence_steps_per_minute": 14.39,
+  "total_packets": 144,
+  "raw_csv": "step_trial_2026-10-27_16-55-07.csv"
+}

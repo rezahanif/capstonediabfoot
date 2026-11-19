@@ -1,0 +1,22 @@
+{
+  "test_id": "TEST_06",
+  "test_name": "BLE Packet Loss & Communication Reliability Measurement",
+  "timestamp": "2026-10-24_13-24-03",
+  "device_name": "Smart_Insole_Left",
+  "device_address": "714FDC13-41D1-C9E5-5905-9784CA946CC6",
+  "rssi_dbm": -66,
+  "duration_sec": 60,
+  "first_seq": 49,
+  "last_seq": 271,
+  "total_expected_samples": 223,
+  "total_received_samples": 223,
+  "dropped_samples": 0,
+  "packet_loss_pct": 0.0,
+  "target_loss_pct": 10.0,
+  "verdict": "PASS",
+  "total_batches_received": 51,
+  "crc_errors": 0,
+  "gap_events_count": 0,
+  "gap_events": [],
+  "csv_log_file": "test_06_packet_loss_log_2026-10-24_13-24-03.csv"
+}

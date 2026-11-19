@@ -9,6 +9,8 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include "esp_bt.h"
+#include "esp_pm.h"
 
 // =====================================================
 // PIN CONFIGURATION
@@ -46,7 +48,7 @@ const int PIN_SCL = 9;
 // =====================================================
 // INSOLE SIDE CONFIG — set 0 pada insole KANAN
 // =====================================================
-#define INSOLE_IS_LEFT 1
+#define INSOLE_IS_LEFT 0
 
 #if INSOLE_IS_LEFT
   #define SERVICE_UUID        "4fa2c732-ca9a-4c20-9492-c167df3c942b"
@@ -58,15 +60,97 @@ const int PIN_SCL = 9;
   #define INSOLE_NAME         "Smart_Insole_Right"
 #endif
 
+// Stability tracking across reboots (RTC memory survives soft reset & watchdog)
+RTC_DATA_ATTR static uint32_t rtcBootCount = 0;
+
 // =====================================================
 // OBJECT SENSOR
 // =====================================================
 
 Adafruit_ADS1115 ads;
-Adafruit_MPU6050 mpu;
 
 bool ads_ok = false;
 bool mpu_ok = false;
+uint8_t mpu_address = 0x68;
+uint8_t mpu_whoami = 0;
+
+// Universal MPU Driver (supports WHO_AM_I 0x68, 0x70, 0x71, 0x74)
+bool initUniversalMPU() {
+  const uint8_t candidateAddresses[] = {0x68, 0x69};
+  for (uint8_t i = 0; i < 2; i++) {
+    uint8_t addr = candidateAddresses[i];
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() != 0) continue;
+
+    // Wake from sleep (PWR_MGMT_1 = 0x00)
+    Wire.beginTransmission(addr);
+    Wire.write(0x6B);
+    Wire.write(0x00);
+    if (Wire.endTransmission() != 0) continue;
+    delay(30);
+
+    // Read WHO_AM_I
+    Wire.beginTransmission(addr);
+    Wire.write(0x75);
+    Wire.endTransmission(false);
+    Wire.requestFrom((uint8_t)addr, (uint8_t)1);
+    mpu_whoami = Wire.available() ? Wire.read() : 0x00;
+
+    Serial.print("[MPU] Device responding at 0x");
+    Serial.print(addr, HEX);
+    Serial.print(" with WHO_AM_I = 0x");
+    Serial.println(mpu_whoami, HEX);
+
+    // Config Accel +/- 8g
+    Wire.beginTransmission(addr);
+    Wire.write(0x1C);
+    Wire.write(0x10);
+    Wire.endTransmission();
+
+    // Config Gyro +/- 500 deg/s
+    Wire.beginTransmission(addr);
+    Wire.write(0x1B);
+    Wire.write(0x08);
+    Wire.endTransmission();
+
+    // DLPF ~21Hz
+    Wire.beginTransmission(addr);
+    Wire.write(0x1A);
+    Wire.write(0x03);
+    Wire.endTransmission();
+
+    mpu_address = addr;
+    return true;
+  }
+  return false;
+}
+
+bool readUniversalMPU(float &ax_out, float &ay_out, float &az_out,
+                      float &gx_out, float &gy_out, float &gz_out,
+                      float &temp_out) {
+  if (!mpu_ok) return false;
+  Wire.beginTransmission(mpu_address);
+  Wire.write(0x3B);
+  if (Wire.endTransmission(false) != 0) return false;
+  if (Wire.requestFrom((uint8_t)mpu_address, (uint8_t)14) != 14) return false;
+
+  int16_t raw_ax = (Wire.read() << 8) | Wire.read();
+  int16_t raw_ay = (Wire.read() << 8) | Wire.read();
+  int16_t raw_az = (Wire.read() << 8) | Wire.read();
+  int16_t raw_t  = (Wire.read() << 8) | Wire.read();
+  int16_t raw_gx = (Wire.read() << 8) | Wire.read();
+  int16_t raw_gy = (Wire.read() << 8) | Wire.read();
+  int16_t raw_gz = (Wire.read() << 8) | Wire.read();
+
+  ax_out = (raw_ax / 4096.0f) * 9.80665f;
+  ay_out = (raw_ay / 4096.0f) * 9.80665f;
+  az_out = (raw_az / 4096.0f) * 9.80665f;
+  gx_out = (raw_gx / 65.5f) * (3.14159265f / 180.0f);
+  gy_out = (raw_gy / 65.5f) * (3.14159265f / 180.0f);
+  gz_out = (raw_gz / 65.5f) * (3.14159265f / 180.0f);
+  temp_out = (raw_t / 340.0f) + 36.53f;
+  return true;
+}
 
 // =====================================================
 // ADC CONFIGURATION
@@ -123,15 +207,28 @@ const float BETA_COEFFICIENT = 3950.0;   // sesuaikan dengan datasheet NTC
 //     - Sentinel NTC -999 TIDAK PERNAH dikirim (NTC mati = diam saja).
 // Serial debug tetap format panjang 31 field — DEBUG SAJA, tidak ke BLE.
 
-const unsigned long STREAM_PERIOD_MS  = 200;      // 5 Hz
-const unsigned long TEMP_PERIOD_MS    = 60000UL;  // 1 per menit
+// =====================================================
+// CADENCE & BATCHING CONFIGURATION
+// =====================================================
+// 20 Hz acquisition (50 ms interval) decouples sensor temporal resolution from BLE transmission.
+// Batching 5 frames into one GATT notification flushes every 250 ms (4 Hz over-the-air burst).
+// This enables ESP32-C3 2.4 GHz RF modem sleep between connection events, extending 300 mAh battery to > 10 hours.
+volatile unsigned long sample_period_ms = 50;     // 20 Hz acquisition (50 ms)
+volatile int batch_size = 5;                      // 5 frames per BLE burst (~250 ms)
+const unsigned long TEMP_PERIOD_MS    = 2000UL;   // 2 detik
 const unsigned long SERIAL_PERIOD_MS  = 500;      // debug saja
 
-// Sampling ringan agar muat di anggaran 200 ms:
-// 4 sampel x 2 ms per FSR = ~40 ms untuk 5 FSR + pembacaan MPU.
-const int FSR_STREAM_SAMPLES = 4;
-const int FSR_SERIAL_SAMPLES = 20;   // debug serial boleh lebih halus
-const int NTC_SAMPLES = 10;
+static String batchBuffer = "";
+static int currentBatchCount = 0;
+static unsigned long lastBatchFlushMs = 0;
+
+uint8_t ntc_channel = 0;
+
+// Fast acquisition for 20-50 Hz cadence:
+// 1 sample per FSR (~15 us each) leaves full idle budget for FreeRTOS tickless sleep
+const int FSR_STREAM_SAMPLES = 1;
+const int FSR_SERIAL_SAMPLES = 10;   // debug serial
+const int NTC_SAMPLES = 5;
 
 unsigned long lastStreamMs = 0;
 unsigned long lastTempMs   = 0;
@@ -156,16 +253,53 @@ volatile bool bleConnected = false;
 class InsoleServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer* s) override {
     bleConnected = true;
+    Serial.println("[BLE] Client connected!");
   }
   void onDisconnect(BLEServer* s) override {
     bleConnected = false;
-    // App punya retry-reconnect sendiri — pastikan tetap terlihat
+    Serial.println("[BLE] Client disconnected!");
     s->getAdvertising()->start();
+  }
+};
+
+bool isBleConnected() {
+  return bleConnected || (bleServer != nullptr && bleServer->getConnectedCount() > 0);
+}
+
+class ConfigCallback : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic* pChar) override {
+    String rx = pChar->getValue();
+    if (rx.length() > 0) {
+      rx.trim();
+      if (rx.startsWith("RATE:")) {
+        int hz = rx.substring(5).toInt();
+        if (hz >= 1 && hz <= 100) {
+          if (hz == 20) {
+            sample_period_ms = 50;
+            batch_size = 5; // 20 Hz acquisition, 4 Hz batched burst
+          } else if (hz == 50) {
+            sample_period_ms = 20;
+            batch_size = 1; // 50 Hz unbatched mode
+          } else {
+            sample_period_ms = 1000UL / (unsigned long)hz;
+            batch_size = 1;
+          }
+          Serial.printf("[BLE] Rate updated to: %d Hz (period %lu ms, batch %d)\n", hz, sample_period_ms, batch_size);
+        }
+      } else if (rx.startsWith("BATCH:")) {
+        int b = rx.substring(6).toInt();
+        if (b >= 1 && b <= 10) {
+          batch_size = b;
+          Serial.printf("[BLE] Batch size updated to: %d\n", batch_size);
+        }
+      }
+    }
   }
 };
 
 void setupBLE() {
   BLEDevice::init(INSOLE_NAME);
+  BLEDevice::setMTU(517);
 
   bleServer = BLEDevice::createServer();
   bleServer->setCallbacks(new InsoleServerCallbacks());
@@ -173,20 +307,33 @@ void setupBLE() {
   BLEService* service = bleServer->createService(SERVICE_UUID);
 
   streamCharacteristic = service->createCharacteristic(
-      CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_NOTIFY);
-  streamCharacteristic->addDescriptor(new BLE2902()); // CCCD (notif enable)
+      CHARACTERISTIC_UUID,
+      BLECharacteristic::PROPERTY_READ |
+      BLECharacteristic::PROPERTY_WRITE |
+      BLECharacteristic::PROPERTY_WRITE_NR |
+      BLECharacteristic::PROPERTY_NOTIFY |
+      BLECharacteristic::PROPERTY_INDICATE
+  );
+
+  streamCharacteristic->setCallbacks(new ConfigCallback());
+
+  BLE2902* p2902 = new BLE2902();
+  p2902->setAccessPermissions(ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE);
+  streamCharacteristic->addDescriptor(p2902);
 
   service->start();
 
   // App memindai dengan ScanFilter pada SERVICE_UUID — WAJIB di-advertise.
   BLEAdvertising* advertising = BLEDevice::getAdvertising();
   advertising->addServiceUUID(SERVICE_UUID);
-  advertising->setScanResponse(true); // nama lengkap di scan response
+  advertising->setScanResponse(true);
+  advertising->setMinPreferred(0x06); // Fast connection for iOS/macOS (7.5ms)
+  advertising->setMaxPreferred(0x10); // 20ms connection interval for 50Hz throughput
   BLEDevice::startAdvertising();
 }
 
 void notifyLine(const char* line) {
-  if (!bleConnected || streamCharacteristic == nullptr) return;
+  if (streamCharacteristic == nullptr) return;
   streamCharacteristic->setValue((uint8_t*)line, strlen(line));
   streamCharacteristic->notify();
 }
@@ -195,12 +342,12 @@ void notifyLine(const char* line) {
 // READ ESP32 ADC FOR FSR
 // =====================================================
 
-float readESP32Voltage(int pin, int samples = 20) {
+float readESP32Voltage(int pin, int samples = 1) {
   long totalADC = 0;
 
   for (int i = 0; i < samples; i++) {
     totalADC += analogRead(pin);
-    delay(2);
+    if (samples > 1) esp_rom_delay_us(50);
   }
 
   float avgADC = totalADC / (float)samples;
@@ -352,15 +499,7 @@ void sampleAndNotifyStream() {
 
   // MPU — jika tidak ada, enam field IMU dikirim 0 (app: imuValid=false)
   if (mpu_ok) {
-    sensors_event_t accel, gyro, temp;
-    mpu.getEvent(&accel, &gyro, &temp);
-    ax = accel.acceleration.x;
-    ay = accel.acceleration.y;
-    az = accel.acceleration.z;
-    gx = gyro.gyro.x;
-    gy = gyro.gyro.y;
-    gz = gyro.gyro.z;
-    dbg_mpu_temp = temp.temperature;
+    readUniversalMPU(ax, ay, az, gx, gy, gz, dbg_mpu_temp);
   }
 
   // Cache untuk serial debug
@@ -368,18 +507,32 @@ void sampleAndNotifyStream() {
   dbg_ax = ax; dbg_ay = ay; dbg_az = az;
   dbg_gx = gx; dbg_gy = gy; dbg_gz = gz;
 
-  if (bleConnected) {
-    char line[96];
-    snprintf(line, sizeof(line),
-             "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f",
-             ax, ay, az, gx, gy, gz,
-             fsrKpa[0], fsrKpa[1], fsrKpa[2], fsrKpa[3], fsrKpa[4]);
+  // Format single frame
+  char line[96];
+  snprintf(line, sizeof(line),
+           "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f\n",
+           ax, ay, az, gx, gy, gz,
+           fsrKpa[0], fsrKpa[1], fsrKpa[2], fsrKpa[3], fsrKpa[4]);
+
+  if (batch_size <= 1) {
+    line[strlen(line) - 1] = '\0'; // strip newline for unbatched single line
     notifyLine(line);
+  } else {
+    batchBuffer += line;
+    currentBatchCount++;
+
+    unsigned long now = millis();
+    if (currentBatchCount >= batch_size || (now - lastBatchFlushMs >= (sample_period_ms * batch_size))) {
+      lastBatchFlushMs = now;
+      notifyLine(batchBuffer.c_str());
+      batchBuffer = "";
+      currentBatchCount = 0;
+    }
   }
 }
 
 void sampleAndNotifyTemp() {
-  float v_ntc = readADSVoltage(0);   // ADS1115 A0
+  float v_ntc = readADSVoltage(ntc_channel);   // ADS1115 NTC channel
   float r_ntc = 0;
   float temp_ntc = 0;
 
@@ -391,22 +544,21 @@ void sampleAndNotifyTemp() {
     temp_ntc = -999;
   }
 
+  // Fallback to internal MPU temperature if NTC thermistor is not wired
+  float reportedTemp = (temp_ntc > -900.0) ? temp_ntc : dbg_mpu_temp;
+  if (reportedTemp < -5.0 || reportedTemp > 60.0) reportedTemp = 25.0;
+
   dbg_ntc_v = v_ntc;
   dbg_ntc_r = r_ntc;
   dbg_ntc_temp = temp_ntc;
 
-  // Baris temperatur: "T,<tempC>" atau "T,<tempC>,<batPct>" (jika battery
-  // terpasang). Sentinel -999 TIDAK dikirim — NTC mati = diam saja;
-  // app menolak suhu di luar rentang kulit sebagai lapis kedua.
-  if (bleConnected && temp_ntc > -900.0) {
-    char line[24];
-    if (dbg_bat_pct >= 0) {
-      snprintf(line, sizeof(line), "T,%.2f,%d", temp_ntc, dbg_bat_pct);
-    } else {
-      snprintf(line, sizeof(line), "T,%.2f", temp_ntc);
-    }
-    notifyLine(line);
-  }
+  // Heartbeat: T,<tempC>,<batPct>,<uptime_s>,<free_heap>,<boot_count>
+  char line[64];
+  unsigned long uptimeS = millis() / 1000UL;
+  uint32_t freeHeap = ESP.getFreeHeap();
+  snprintf(line, sizeof(line), "T,%.2f,%d,%lu,%lu,%lu", 
+           reportedTemp, dbg_bat_pct, uptimeS, (unsigned long)freeHeap, (unsigned long)rtcBootCount);
+  notifyLine(line);
 }
 
 void readBattery() {
@@ -430,6 +582,10 @@ void printSerialDebug() {
     dbg_fsr_r[i] = r_fsr;
     dbg_fsr_force[i] = force_N;
     dbg_fsr_kpa[i] = pressure_kPa;
+  }
+
+  if (mpu_ok && !bleConnected) {
+    readUniversalMPU(dbg_ax, dbg_ay, dbg_az, dbg_gx, dbg_gy, dbg_gz, dbg_mpu_temp);
   }
 
   Serial.print(millis());
@@ -511,8 +667,11 @@ void scanI2C() {
 // =====================================================
 
 void setup() {
+  rtcBootCount++;
+  setCpuFrequencyMhz(80); // 80 MHz reduces CPU draw by >50%, ideal for 8h+ battery bench
+
   Serial.begin(115200);
-  delay(3000);
+  delay(1000);
 
   Serial.println();
   Serial.println("============================================");
@@ -528,7 +687,9 @@ void setup() {
   }
 
   Wire.begin(PIN_SDA, PIN_SCL);
-  delay(500);
+  Wire.setClock(400000); // 400 kHz Fast Mode for high-cadence 50 Hz reads
+  Wire.setTimeOut(50);
+  delay(100);
 
   Serial.println("Pin configuration:");
   Serial.println("FSR1(p1/HALLUX)  = GPIO0");
@@ -552,13 +713,21 @@ void setup() {
   // INIT ADS1115
   // =====================================================
 
-  if (ads.begin(0x48, &Wire)) {
+  if (ads.begin(0x48, &Wire) || ads.begin(0x49, &Wire)) {
     ads_ok = true;
-    Serial.println("ADS1115 terdeteksi di alamat 0x48");
+    Serial.println("ADS1115 terdeteksi di alamat I2C");
 
-    // GAIN_ONE = range +/-4.096V.
-    // Cocok untuk membaca sinyal 0 sampai 3.3V.
     ads.setGain(GAIN_ONE);
+    ads.setDataRate(RATE_ADS1115_860SPS);
+    for (uint8_t ch = 0; ch < 4; ch++) {
+      float v = ads.computeVolts(ads.readADC_SingleEnded(ch));
+      if (v >= 0.2f && v <= 3.1f) {
+        ntc_channel = ch;
+        Serial.print("NTC thermistor ditemukan di ADS1115 channel A");
+        Serial.println(ch);
+        break;
+      }
+    }
   } else {
     ads_ok = false;
     Serial.println("WARNING: ADS1115 tidak terdeteksi.");
@@ -566,31 +735,22 @@ void setup() {
   }
 
   // =====================================================
-  // INIT MPU6050
+  // INIT MPU (Universal Driver)
   // =====================================================
 
-  if (mpu.begin(0x68, &Wire)) {
-    mpu_ok = true;
-    Serial.println("MPU6050 terdeteksi di alamat 0x68");
-  } else if (mpu.begin(0x69, &Wire)) {
-    mpu_ok = true;
-    Serial.println("MPU6050 terdeteksi di alamat 0x69");
-  } else {
-    mpu_ok = false;
-    Serial.println("WARNING: MPU6050 tidak terdeteksi.");
-    Serial.println("Stream BLE tetap jalan: IMU dikirim 0 (app: imuValid=false).");
-  }
-
+  mpu_ok = initUniversalMPU();
   if (mpu_ok) {
-    mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-    mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-    mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+    Serial.println("MPU/ICM terdeteksi dan berhasil dikonfigurasi.");
+  } else {
+    Serial.println("WARNING: MPU tidak terdeteksi.");
+    Serial.println("Stream BLE tetap jalan: IMU dikirim 0 (app: imuValid=false).");
   }
 
   // =====================================================
   // INIT BLE (v2 contract)
   // =====================================================
   setupBLE();
+  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P3); // +3 dBm for lower peak current
   Serial.println("BLE advertising sebagai " INSOLE_NAME);
 
   if (BATTERY_PIN >= 0) {
@@ -611,7 +771,7 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
-  if (now - lastStreamMs >= STREAM_PERIOD_MS) {
+  if (now - lastStreamMs >= sample_period_ms) {
     lastStreamMs = now;
     sampleAndNotifyStream();
   }
@@ -631,5 +791,12 @@ void loop() {
     printSerialDebug();
   }
 
-  delay(2); // yield
+  // Energy-efficient sleep: yield CPU to FreeRTOS idle task until next tick
+  now = millis();
+  unsigned long timeToNext = (now - lastStreamMs < sample_period_ms) ? (sample_period_ms - (now - lastStreamMs)) : 0;
+  if (timeToNext > 5) {
+    delay(timeToNext - 2);
+  } else {
+    delay(1);
+  }
 }

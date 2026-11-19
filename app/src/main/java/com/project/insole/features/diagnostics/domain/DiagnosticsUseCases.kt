@@ -1,15 +1,18 @@
 package com.project.insole.features.diagnostics.domain
 
+import com.project.insole.features.diagnostics.data.DiagnosticsDataSource.DeviceStatus
+import com.project.insole.features.sensor.domain.model.SensorConstants
 import javax.inject.Inject
 
 /**
- * Pure Kotlin domain use cases for device diagnostics.
- * No Android or BLE dependencies - only business logic.
+ * Pure Kotlin domain report for technical insole diagnostics (TD-4).
+ * Combines hardware signal qualities with clinical asymmetry evaluation.
  */
 
 data class DiagnosticReport(
-    val batteryStatus: String,
+    val status: DeviceStatus,
     val signalQuality: String,
+    val thermalAsymmetrySummary: String,
     val overallHealth: HealthStatus
 )
 
@@ -21,38 +24,38 @@ enum class HealthStatus {
 }
 
 class GenerateDiagnosticReportUseCase @Inject constructor() {
-    operator fun invoke(
-        batteryLevel: Int?,
-        rssiStrength: Int?,
-        connectionState: String
-    ): DiagnosticReport {
-        // Null = the firmware cannot report the value (TD-13: no battery
-        // monitoring hardware). Report it honestly as Unavailable — never a
-        // placeholder number.
-        val batteryStatus = when {
-            batteryLevel == null -> "Unavailable"
-            batteryLevel in 80..100 -> "Excellent"
-            batteryLevel in 50..79 -> "Good"
-            batteryLevel in 20..49 -> "Low"
-            else -> "Critical"
-        }
+    operator fun invoke(status: DeviceStatus): DiagnosticReport {
+        val leftRssi = status.leftInsole.rssiDbm
+        val rightRssi = status.rightInsole.rssiDbm
 
         val signalQuality = when {
-            rssiStrength == null -> "Unknown"
-            rssiStrength in -50..-30 -> "Excellent"
-            rssiStrength in -70..-51 -> "Good"
-            rssiStrength in -80..-71 -> "Fair"
-            else -> "Poor"
+            leftRssi == null && rightRssi == null -> "Unknown (Not Scanned)"
+            (leftRssi ?: -100) > -65 && (rightRssi ?: -100) > -65 -> "Strong Signal (>-65 dBm)"
+            (leftRssi ?: -100) > -80 || (rightRssi ?: -100) > -80 -> "Acceptable Signal"
+            else -> "Weak Signal (<-80 dBm)"
+        }
+
+        val asymmetrySummary = when {
+            status.leftInsole.liveTemperatureC <= 0f || status.rightInsole.liveTemperatureC <= 0f ->
+                "Awaiting bilateral temperature reading"
+            status.thermalAsymmetryC >= SensorConstants.TEMPERATURE_DIFF_WARNING ->
+                "Elevated asymmetry: %.2f °C (≥ 2.2 °C clinical threshold)".format(status.thermalAsymmetryC)
+            else ->
+                "Balanced asymmetry: %.2f °C (< 2.2 °C clinical threshold)".format(status.thermalAsymmetryC)
         }
 
         val overallHealth = when {
-            connectionState != "Connected" -> HealthStatus.POOR
-            batteryLevel != null && batteryLevel > 50 && (rssiStrength == null || rssiStrength > -70) -> HealthStatus.EXCELLENT
-            batteryLevel != null && batteryLevel > 20 && (rssiStrength == null || rssiStrength > -80) -> HealthStatus.GOOD
-            batteryLevel == null && (rssiStrength == null || rssiStrength > -80) -> HealthStatus.FAIR
-            else -> HealthStatus.POOR
+            !status.isBilateralConnected -> HealthStatus.POOR
+            status.thermalAsymmetryC >= SensorConstants.TEMPERATURE_DIFF_WARNING -> HealthStatus.FAIR
+            (leftRssi == null || leftRssi > -75) && (rightRssi == null || rightRssi > -75) -> HealthStatus.EXCELLENT
+            else -> HealthStatus.GOOD
         }
 
-        return DiagnosticReport(batteryStatus, signalQuality, overallHealth)
+        return DiagnosticReport(
+            status = status,
+            signalQuality = signalQuality,
+            thermalAsymmetrySummary = asymmetrySummary,
+            overallHealth = overallHealth
+        )
     }
 }

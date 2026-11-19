@@ -4,11 +4,13 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.project.insole.MainActivity
 import com.project.insole.R
 
 /**
@@ -79,10 +81,20 @@ class InsoleNotificationManager(private val context: Context) {
             }
         }
 
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, CHANNEL_CRITICAL_ALERTS)
             .setContentTitle(title)
             .setContentText(message)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setAutoCancel(true)
             .setVibrate(longArrayOf(0, 500, 250, 500))
@@ -188,6 +200,44 @@ class InsoleNotificationManager(private val context: Context) {
     }
 
     /**
+     * Sends temperature asymmetry alert notification.
+     */
+    fun sendThermalAlert(
+        title: String,
+        message: String
+    ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_CRITICAL_ALERTS)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setAutoCancel(true)
+            .setVibrate(longArrayOf(0, 500, 250, 500))
+            .build()
+
+        notificationManager.notify(
+            NOTIFICATION_ID_THERMAL,
+            notification
+        )
+    }
+
+    /**
      * Cancels a notification by ID.
      */
     fun cancelNotification(notificationId: Int) {
@@ -210,6 +260,7 @@ class InsoleNotificationManager(private val context: Context) {
         private const val NOTIFICATION_ID_CONNECTION = 1002
         private const val NOTIFICATION_ID_BATTERY = 1003
         private const val NOTIFICATION_ID_CALIBRATION = 1004
+        private const val NOTIFICATION_ID_THERMAL = 1005
     }
 }
 

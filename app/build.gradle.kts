@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,6 +7,26 @@ plugins {
     id("com.google.dagger.hilt.android")
     id("org.jetbrains.kotlin.plugin.compose") version "2.0.21"
 }
+
+/**
+ * Resolves the cloud API base URL without editing source. Order:
+ *  1. -Pdiabfoot.apiBaseUrl=...        (per-build override)
+ *  2. DIABFOOT_API_BASE_URL env var    (CI)
+ *  3. local.properties                 (per-machine, never committed)
+ *  4. production default               (Cloudflare Tunnel hostname)
+ */
+fun resolveApiBaseUrl(): String {
+    project.providers.gradleProperty("diabfoot.apiBaseUrl").orNull?.let { return it }
+    project.providers.environmentVariable("DIABFOOT_API_BASE_URL").orNull?.let { return it }
+    val localProperties = project.rootProject.file("local.properties")
+    if (localProperties.exists()) {
+        val props = Properties().apply { localProperties.inputStream().use { load(it) } }
+        props.getProperty("diabfoot.apiBaseUrl")?.let { return it }
+    }
+    return "https://diabfoot.aiconnect.fun"
+}
+
+val apiBaseUrl = resolveApiBaseUrl()
 
 android {
     namespace = "com.project.insole"
@@ -21,6 +43,9 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // Injected into ApiConfig at runtime; one source of truth for all builds.
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
     buildTypes {
@@ -43,6 +68,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
@@ -80,9 +106,13 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
+    // Networking
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
+    testImplementation("org.json:json:20240303")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2023.08.00"))

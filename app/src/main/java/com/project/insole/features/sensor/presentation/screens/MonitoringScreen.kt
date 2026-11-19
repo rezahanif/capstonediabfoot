@@ -83,24 +83,22 @@ fun MonitoringScreen(
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 SingleFootTempCard(
-                    label = "RIGHT FOOT (PEAK)",
-                    temp = bleState.rightPeakTempC,
-                    modifier = Modifier.weight(1f)
-                )
-                SingleFootTempCard(
                     label = "LEFT FOOT (PEAK)",
                     temp = bleState.leftPeakTempC,
                     modifier = Modifier.weight(1f)
                 )
+                SingleFootTempCard(
+                    label = "RIGHT FOOT (PEAK)",
+                    temp = bleState.rightPeakTempC,
+                    modifier = Modifier.weight(1f)
+                )
             }
 
-            // 6 ── End Session Button ─────────────────────────────────────
+            // 6 ── Reset Live Session Button ──────────────────────────────
             Button(
                 onClick = { 
                     viewModel.endSession()
-                    bleViewModel.resetSessionStats() // Added to clear peaks
-                    bleViewModel.disconnect() // Explicitly disconnect both devices
-                    onBack()
+                    bleViewModel.resetSessionStats() // Resets live session peaks & timer
                 },
                 enabled = hasActiveSession,
                 modifier = Modifier
@@ -109,12 +107,12 @@ fun MonitoringScreen(
                     .height(52.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = DashboardColors.Alert,
+                    containerColor = DashboardColors.Brand,
                     contentColor = DashboardColors.CardBg,
                     disabledContainerColor = DashboardColors.ProgressTrack,
                     disabledContentColor = DashboardColors.TextLightGray
                 ),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = if (hasActiveSession) 4.dp else 0.dp)
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = if (hasActiveSession) 2.dp else 0.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.StopCircle,
@@ -123,7 +121,7 @@ fun MonitoringScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = if (hasActiveSession) "End Session" else "No Active Session",
+                    text = if (hasActiveSession) "Reset Live Session" else "Monitoring Inactive",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -166,7 +164,7 @@ private fun MonitoringTopBar(onBack: () -> Unit) {
             modifier = Modifier.align(Alignment.CenterEnd)
         ) {
             Text(
-                text = "AUTO",
+                text = "LIVE",
                 color = Color.White,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
@@ -182,6 +180,12 @@ private fun SingleFootTempCard(
     temp: Float,
     modifier: Modifier = Modifier
 ) {
+    val (statusText, statusColor, subtitle) = when {
+        temp <= 0f -> Triple("No Data", DashboardColors.TextLightGray, "Awaiting reading")
+        temp >= 35.0f -> Triple("Elevated", DashboardColors.Yellow, "Warm skin status")
+        else -> Triple("Optimal", DashboardColors.GreenMint, "Normal thermal range")
+    }
+
     Card(
         modifier = modifier.fillMaxHeight(),
         shape = RoundedCornerShape(20.dp),
@@ -189,7 +193,9 @@ private fun SingleFootTempCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -201,24 +207,20 @@ private fun SingleFootTempCard(
                 letterSpacing = 0.5.sp
             )
             
-            Row(
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.Center,
+            Text(
+                text = statusText,
+                color = statusColor,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 4.dp)
-            ) {
-                Text(
-                    text = "%.1f".format(temp),
-                    color = DashboardColors.Navy,
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "°C",
-                    color = DashboardColors.TextMuted,
-                    fontSize = 18.sp,
-                    modifier = Modifier.padding(bottom = 6.dp, start = 2.dp)
-                )
-            }
+            )
+
+            Text(
+                text = subtitle,
+                color = DashboardColors.TextMuted,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
         }
     }
 }

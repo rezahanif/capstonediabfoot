@@ -13,9 +13,40 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.project.insole.core.theme.DashboardColors
+import java.time.LocalTime
 
+/**
+ * Dashboard Header Greeting.
+ * Dynamically computes time-of-day greeting (Morning / Afternoon / Evening).
+ * Accurately reflects connection badge (MONITORING ACTIVE vs CONNECTING vs OFFLINE)
+ * and latest packet check timestamp.
+ */
 @Composable
-fun GreetingSection(userName: String, lastCheckTime: String) {
+fun GreetingSection(
+    userName: String = "Reza",
+    lastCheckTime: String? = null,
+    isConnected: Boolean = false,
+    isConnecting: Boolean = false
+) {
+    val hour = LocalTime.now().hour
+    val greetingPrefix = when (hour) {
+        in 4..11 -> "Good Morning"
+        in 12..17 -> "Good Afternoon"
+        else -> "Good Evening"
+    }
+
+    val (badgeBg, badgeText) = when {
+        isConnecting -> DashboardColors.Brand to "CONNECTING..."
+        isConnected -> DashboardColors.Green to "MONITORING ACTIVE"
+        else -> DashboardColors.TextGray to "OFFLINE"
+    }
+
+    val checkText = when {
+        lastCheckTime != null -> "Last check: $lastCheckTime"
+        isConnected -> "Streaming live"
+        else -> "Insoles not connected"
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -24,7 +55,7 @@ fun GreetingSection(userName: String, lastCheckTime: String) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = "Good Morning, $userName",
+            text = "$greetingPrefix, $userName",
             color = DashboardColors.Navy,
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
@@ -35,11 +66,11 @@ fun GreetingSection(userName: String, lastCheckTime: String) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // "MONITORING ACTIVE" badge
+            // Status Badge
             Row(
                 modifier = Modifier
                     .clip(CircleShape)
-                    .background(DashboardColors.Green)
+                    .background(badgeBg)
                     .padding(horizontal = 12.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -51,7 +82,7 @@ fun GreetingSection(userName: String, lastCheckTime: String) {
                         .background(Color.White)
                 )
                 Text(
-                    text = "MONITORING ACTIVE",
+                    text = badgeText,
                     color = Color.White,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
@@ -59,7 +90,7 @@ fun GreetingSection(userName: String, lastCheckTime: String) {
                 )
             }
             Text(
-                text = "Last check: $lastCheckTime",
+                text = checkText,
                 color = DashboardColors.TextMuted,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Normal,

@@ -3,6 +3,7 @@ package com.project.insole.features.trends.presentation.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.project.insole.core.theme.DashboardColors
 import com.project.insole.features.trends.presentation.DayActivity
+import com.project.insole.features.trends.presentation.DayThermalMetric
+import com.project.insole.features.trends.presentation.ThermalStatus
 import com.project.insole.features.trends.presentation.TrendsViewModel
 
 /**
@@ -37,6 +40,9 @@ fun TrendsScreen(
     viewModel: TrendsViewModel,
     onBack: () -> Unit = {}
 ) {
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.loadTrends()
+    }
     val state = viewModel.trendsState.collectAsState().value
 
     Column(
@@ -72,7 +78,35 @@ fun TrendsScreen(
                 WeekListCard(state.week, state.totalSteps)
             }
 
-            // 4 ── Supportive footnote ─────────────────────────────────────────
+            // 4 ── Thermal Balance (TD-7) ──────────────────────────────────────
+            Text(
+                text = "THERMAL BALANCE",
+                color = DashboardColors.TextMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.5.sp,
+                modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 8.dp)
+            )
+
+            ThermalBalanceCard(state.thermalWeek, state.overallThermalStatus)
+
+            // 5 ── Daily Wear Time Adherence ───────────────────────────────────
+            Text(
+                text = "DAILY WEAR TIME",
+                color = DashboardColors.TextMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.5.sp,
+                modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 8.dp)
+            )
+
+            DailyWearTimeCard(
+                averageWearMinutesPerDay = state.averageWearMinutesPerDay,
+                daysWithWearCount = state.daysWithWearCount,
+                totalWearMinutes = state.totalWearMinutes
+            )
+
+            // 6 ── Supportive footnote ─────────────────────────────────────────
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -263,13 +297,208 @@ private fun EmptyHistoryCard() {
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Text(
-            text = "Not enough data yet.\n\nWear both insoles during the day and your week " +
-                "will appear here on its own — nothing for you to do.",
+            text = "Gathering your weekly trends.\n\nWear your insoles daily to see your activity summary here.",
             color = DashboardColors.TextMuted,
             fontSize = 13.sp,
             lineHeight = 19.sp,
             modifier = Modifier.padding(20.dp)
         )
+    }
+}
+
+@Composable
+private fun ThermalBalanceCard(
+    thermalWeek: List<DayThermalMetric>,
+    overallStatus: ThermalStatus
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = DashboardColors.CardBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Status row with indicator dot
+            val (dotColor, statusTitle, statusDesc) = when (overallStatus) {
+                ThermalStatus.NO_DATA -> Triple(
+                    DashboardColors.ProgressTrack,
+                    "Not enough data yet",
+                    "Wear both insoles during the day to track temperature balance across both feet."
+                )
+                ThermalStatus.BALANCED -> Triple(
+                    DashboardColors.Green,
+                    "Normal thermal balance",
+                    "Skin temperature remained consistent between both feet this week."
+                )
+                ThermalStatus.MILD_WARMTH -> Triple(
+                    DashboardColors.Yellow,
+                    "Mild warmth observed",
+                    "A slight temperature difference was noted between feet. Continue wearing and monitoring."
+                )
+                ThermalStatus.ATTENTION -> Triple(
+                    DashboardColors.Yellow,
+                    "Time to check feet",
+                    "A noticeable temperature difference was recorded. Take a moment to inspect your feet for redness or irritation."
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(dotColor)
+                )
+
+                Text(
+                    text = statusTitle,
+                    color = DashboardColors.Navy,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Text(
+                text = statusDesc,
+                color = DashboardColors.TextMuted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp
+            )
+
+            // 7-day dot timeline
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                thermalWeek.forEach { day ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = day.dayLabel,
+                            color = if (day.isToday) DashboardColors.Brand else DashboardColors.TextLightGray,
+                            fontSize = 11.sp,
+                            fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Medium
+                        )
+
+                        val dayDotColor = when (day.status) {
+                            ThermalStatus.NO_DATA -> DashboardColors.ProgressTrack
+                            ThermalStatus.BALANCED -> DashboardColors.Green
+                            ThermalStatus.MILD_WARMTH -> DashboardColors.Yellow
+                            ThermalStatus.ATTENTION -> DashboardColors.Yellow
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(dayDotColor)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DailyWearTimeCard(
+    averageWearMinutesPerDay: Int,
+    daysWithWearCount: Int,
+    totalWearMinutes: Int
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = DashboardColors.CardBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            val hours = averageWearMinutesPerDay / 60
+            val mins = averageWearMinutesPerDay % 60
+            val wearTimeDisplay = when {
+                hours > 0 && mins > 0 -> "${hours}h ${mins}m"
+                hours > 0 -> "${hours}h"
+                mins > 0 -> "${mins}m"
+                else -> "0m"
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = wearTimeDisplay,
+                        color = DashboardColors.Navy,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (daysWithWearCount > 0) "Daily average on active days" else "No wear recorded this week",
+                        color = DashboardColors.TextMuted,
+                        fontSize = 12.sp
+                    )
+                }
+
+                // Days worn badge
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(DashboardColors.InfoBadgeBg)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "$daysWithWearCount of 7 days",
+                        color = DashboardColors.Brand,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            // Progress bar toward recommended daytime wear (e.g. 6 hours / 360 mins)
+            val targetMinutes = 360f
+            val fraction = (averageWearMinutesPerDay / targetMinutes).coerceIn(0f, 1f)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(DashboardColors.ProgressTrack)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(DashboardColors.Brand)
+                )
+            }
+        }
     }
 }
 

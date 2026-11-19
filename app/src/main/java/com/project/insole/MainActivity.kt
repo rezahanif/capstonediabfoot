@@ -17,6 +17,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.project.insole.core.network.SessionManager
 import com.project.insole.core.ble.BleConnectionManager
 import com.project.insole.core.ble.BleViewModel
 import com.project.insole.core.theme.InsoleTheme
@@ -45,6 +46,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var bleConnectionManager: BleConnectionManager
 
+    @Inject
+    lateinit var sessionManager: SessionManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestBluetoothPermissions()
@@ -59,7 +63,9 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     val sharedBleViewModel: BleViewModel = hiltViewModel()
 
-                    NavHost(navController = navController, startDestination = "landing") {
+                    val startDestination = if (sessionManager.isAuthenticated()) "main" else "landing"
+
+                    NavHost(navController = navController, startDestination = startDestination) {
                         composable("landing") {
                             LandingScreen(
                                 onNavigateToLogin = { navController.navigate("login") },
@@ -82,7 +88,7 @@ class MainActivity : ComponentActivity() {
                             SignUpScreen(
                                 viewModel = hiltViewModel(),
                                 onNavigateToHome = {
-                                    navController.navigate("main") {
+                                    navController.navigate("pairing") {
                                         popUpTo("landing") { inclusive = true }
                                     }
                                 },
@@ -98,7 +104,7 @@ class MainActivity : ComponentActivity() {
                                 onLogout = {
                                     authViewModel.logout()
                                     navController.navigate("landing") {
-                                        popUpTo("main") { inclusive = true }
+                                        popUpTo(0) { inclusive = true }
                                     }
                                 },
                                 bleViewModel = sharedBleViewModel
@@ -107,15 +113,32 @@ class MainActivity : ComponentActivity() {
                         composable("pairing") {
                             BleDevicePairingScreen(
                                 viewModel = sharedBleViewModel,
-                                onConnected = { navController.popBackStack() },
-                                onBack = { navController.popBackStack() }
+                                onConnected = { 
+                                    navController.navigate("main") {
+                                        popUpTo("pairing") { inclusive = true }
+                                    }
+                                },
+                                onBack = { 
+                                    if (!navController.popBackStack()) {
+                                        navController.navigate("main") {
+                                            popUpTo(0) { inclusive = true }
+                                        }
+                                    }
+                                }
                             )
                         }
                         composable("settings") {
                             SettingsScreen(
                                 viewModel = hiltViewModel(),
                                 onBack = { navController.popBackStack() },
-                                onNavigateToPairing = { navController.navigate("pairing") }
+                                onNavigateToPairing = { navController.navigate("pairing") },
+                                onNavigateToDiagnostics = { navController.navigate("diagnostics") }
+                            )
+                        }
+                        composable("diagnostics") {
+                            com.project.insole.features.diagnostics.presentation.DiagnosticsScreen(
+                                viewModel = hiltViewModel(),
+                                onBack = { navController.popBackStack() }
                             )
                         }
                     }
@@ -148,6 +171,11 @@ class MainActivity : ComponentActivity() {
         }
         if (!hasBluetoothConnectPermission()) {
             permissionsNeeded.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permissionsNeeded.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
 
         if (permissionsNeeded.isNotEmpty()) {

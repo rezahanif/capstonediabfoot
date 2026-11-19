@@ -10,7 +10,7 @@ object DashboardColors {
     val Green             = Color(0xFF2EB88A)   // connected / good
     val GreenMint         = Color(0xFF10B981)   // circle progress / badge
     val GreenBar          = Color(0xFF34D399)   // bar chart bars
-    val Yellow            = Color(0xFFEAB308)   // sync CTA
+    val Yellow            = Color(0xFFEAB308)   // sync CTA / attention
     val TextMuted         = Color(0xFF44474E)
     val TextGray          = Color(0xFF6B7280)
     val TextLightGray     = Color(0xFF9CA3AF)
@@ -26,4 +26,19 @@ object DashboardColors {
     val CardTintBlue      = Color(0xFFF0F7FF)   // highlighted (recognized) card bg
     val SideRight         = Color(0xFFE91E63)   // RIGHT-insole accent
     val Alert             = Color(0xFFE53935)   // destructive / disabled states
+
+    // TD-9: Official Heatmap Spectrum tokens (blue -> cyan -> green -> yellow -> red)
+    val Heatmap00         = Color(0xFF0A1172)   // deep blue (zero pressure)
+    val Heatmap15         = Color(0xFF0066CC)
+    val Heatmap30         = Color(0xFF00AAFF)   // cyan
+    val Heatmap45         = Color(0xFF00DDAA)   // teal
+    val Heatmap60         = Color(0xFF44FF44)   // green
+    val Heatmap75         = Color(0xFFFFFF00)   // yellow
+    val Heatmap88         = Color(0xFFFF8800)   // orange
+    val Heatmap100        = Color(0xFFFF2200)   // red (peak pressure)
+
+    // Plantar Foot Silhouette and Neutral Indicators
+    val FootSilhouette    = Color(0xFF0A2050)
+    val FootOutlineMuted  = Color(0xFFAAAAAA)
+    val InactiveTrack     = Color(0xFFCCCCCC)
 }

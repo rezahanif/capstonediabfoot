@@ -204,4 +204,55 @@ class SensorPacketParserTest {
         assertEquals(64, heartbeat.batteryPercent)
         assertTrue(heartbeat.pressuresKpa.isEmpty())
     }
+
+    @Test
+    fun `parseBatch extracts all valid frames in multi-line payload`() {
+        val batchPayload = """
+            0.1,-9.8,0.3,0.0,0.5,-0.1,10.0,20.0,30.0,40.0,50.0
+            0.2,-9.7,0.4,0.1,0.6,-0.2,11.0,21.0,31.0,41.0,51.0
+            0.3,-9.6,0.5,0.2,0.7,-0.3,12.0,22.0,32.0,42.0,52.0
+            T,32.5,85
+        """.trimIndent()
+
+        val packets = SensorPacketParser.parseBatch(batchPayload)
+
+        assertEquals(4, packets.size)
+        // Frame 1
+        assertEquals(0.1f, packets[0].accelX, 1e-6f)
+        assertEquals(150.0f, packets[0].pressure, 1e-4f)
+        assertFalse(packets[0].isTemperatureOnly)
+
+        // Frame 2
+        assertEquals(0.2f, packets[1].accelX, 1e-6f)
+        assertEquals(155.0f, packets[1].pressure, 1e-4f)
+
+        // Frame 3
+        assertEquals(0.3f, packets[2].accelX, 1e-6f)
+        assertEquals(160.0f, packets[2].pressure, 1e-4f)
+
+        // Frame 4 (Heartbeat)
+        assertTrue(packets[3].isTemperatureOnly)
+        assertEquals(32.5f, packets[3].temperature, 1e-6f)
+        assertEquals(85, packets[3].batteryPercent)
+    }
+
+    @Test
+    fun `parseBatch skips malformed lines without dropping valid frames`() {
+        val mixedPayload = """
+            0.1,-9.8,0.3,0.0,0.5,-0.1,10.0,20.0,30.0,40.0,50.0
+            CORRUPT_DATA_LINE_TOO_FEW_FIELDS
+            
+            0.2,-9.7,0.4,0.1,0.6,-0.2,11.0,21.0,31.0,41.0,51.0
+            T,-999,50
+            T,33.0,90
+        """.trimIndent()
+
+        val packets = SensorPacketParser.parseBatch(mixedPayload)
+
+        // Only 3 valid: Frame 1, Frame 2, and valid Heartbeat (T,-999 is rejected)
+        assertEquals(3, packets.size)
+        assertEquals(0.1f, packets[0].accelX, 1e-6f)
+        assertEquals(0.2f, packets[1].accelX, 1e-6f)
+        assertEquals(33.0f, packets[2].temperature, 1e-6f)
+    }
 }

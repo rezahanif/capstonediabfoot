@@ -124,14 +124,18 @@ class BleViewModel @Inject constructor(
             bleManager.leftDeviceState.collect { state ->
                 val isConnected = state == BleDeviceState.Connected
                 _bleState.update { currentState ->
+                    val wasConnected = currentState.leftDeviceState == BleDeviceState.Connected
+                    val isNowDisconnected = state == BleDeviceState.Disconnected && wasConnected
+                    val err = if (isNowDisconnected) "Left insole disconnected. Place it nearby to reconnect."
+                              else (state as? BleDeviceState.Error)?.message ?: currentState.errorMessage
+
                     currentState.copy(
                         leftDeviceState = state,
                         leftTempC = if (isConnected) currentState.leftTempC else 0f,
                         leftPressure = if (isConnected) currentState.leftPressure else 0f,
                         // If we are disconnecting, also reset raw data to stop the charts
                         leftRawData = if (isConnected) currentState.leftRawData else null,
-                        errorMessage = (state as? BleDeviceState.Error)?.message
-                            ?: currentState.errorMessage
+                        errorMessage = err
                     )
                 }
             }
@@ -140,14 +144,18 @@ class BleViewModel @Inject constructor(
             bleManager.rightDeviceState.collect { state ->
                 val isConnected = state == BleDeviceState.Connected
                 _bleState.update { currentState ->
+                    val wasConnected = currentState.rightDeviceState == BleDeviceState.Connected
+                    val isNowDisconnected = state == BleDeviceState.Disconnected && wasConnected
+                    val err = if (isNowDisconnected) "Right insole disconnected. Place it nearby to reconnect."
+                              else (state as? BleDeviceState.Error)?.message ?: currentState.errorMessage
+
                     currentState.copy(
                         rightDeviceState = state,
                         rightTempC = if (isConnected) currentState.rightTempC else 0f,
                         rightPressure = if (isConnected) currentState.rightPressure else 0f,
                         // If we are disconnecting, also reset raw data to stop the charts
                         rightRawData = if (isConnected) currentState.rightRawData else null,
-                        errorMessage = (state as? BleDeviceState.Error)?.message
-                            ?: currentState.errorMessage
+                        errorMessage = err
                     )
                 }
             }
@@ -164,7 +172,7 @@ class BleViewModel @Inject constructor(
         if (_bleState.value.isBluetoothEnabled) {
             bleManager.startScanning()
         } else {
-            _bleState.value = _bleState.value.copy(errorMessage = "Bluetooth is not enabled")
+            _bleState.value = _bleState.value.copy(errorMessage = "Please turn on Bluetooth to connect your insoles.")
         }
     }
 
@@ -172,8 +180,8 @@ class BleViewModel @Inject constructor(
         bleManager.stopScanning()
     }
 
-    fun connectToDevice(deviceAddress: String) {
-        bleManager.connect(deviceAddress)
+    fun connectToDevice(deviceAddress: String, isLeft: Boolean? = null) {
+        bleManager.connect(deviceAddress, isLeft)
     }
 
     fun disconnect(deviceAddress: String? = null) {
@@ -190,7 +198,9 @@ class BleViewModel @Inject constructor(
             leftTempC = 0f,
             rightTempC = 0f,
             leftPressure = 0f,
-            rightPressure = 0f
+            rightPressure = 0f,
+            totalSteps = 0,
+            hourlySteps = List(24) { 0 }
         )}
     }
 }

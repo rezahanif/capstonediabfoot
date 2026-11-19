@@ -1,7 +1,9 @@
 package com.project.insole.core.di
 
+import com.project.insole.features.diagnostics.presentation.seeder.YesterdayMetricsReloader
 import com.project.insole.features.notifications.domain.ThresholdsConfigRepository
 import com.project.insole.features.notifications.data.ThresholdsConfigRepositoryImpl
+import com.project.insole.features.sensor.data.datasource.BleSensorDataSource
 import com.project.insole.features.sensor.domain.repository.SensorRepository
 import com.project.insole.features.sensor.data.repository.SensorRepositoryImpl
 import dagger.Binds
@@ -25,4 +27,10 @@ abstract class RepositoryModule {
     abstract fun bindThresholdsConfigRepository(
         thresholdsConfigRepositoryImpl: ThresholdsConfigRepositoryImpl
     ): ThresholdsConfigRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindYesterdayMetricsReloader(
+        bleSensorDataSource: BleSensorDataSource
+    ): YesterdayMetricsReloader
 }

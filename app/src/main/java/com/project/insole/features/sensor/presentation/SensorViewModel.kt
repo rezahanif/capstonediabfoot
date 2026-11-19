@@ -3,10 +3,12 @@ package com.project.insole.features.sensor.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.project.insole.core.ble.model.BleDeviceState
+import com.project.insole.core.notifications.InsoleNotificationManager
 import com.project.insole.features.sensor.domain.model.InsoleSensorData
 import com.project.insole.features.sensor.domain.repository.SensorRepository
 import com.project.insole.features.sensor.domain.usecase.AnalyzePressureThresholdUseCase
 import com.project.insole.features.sensor.domain.usecase.MapPressureToGridUseCase
+import com.project.insole.features.sensor.domain.usecase.SyncCloudDataUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -25,7 +27,9 @@ import javax.inject.Inject
 data class PressureMapState(
     val leftGrid: List<Float> = emptyList(),
     val rightGrid: List<Float> = emptyList(),
-    val isZoned: Boolean = false
+    val isZoned: Boolean = false,
+    val leftZonePressures: List<Float> = emptyList(),
+    val rightZonePressures: List<Float> = emptyList(),
 )
 
 data class SensorUiState(
@@ -49,7 +53,9 @@ data class SensorUiState(
 class SensorViewModel @Inject constructor(
     private val sensorRepository: SensorRepository,
     private val mapPressureToGridUseCase: MapPressureToGridUseCase,
-    private val analyzePressureThresholdUseCase: AnalyzePressureThresholdUseCase
+    private val analyzePressureThresholdUseCase: AnalyzePressureThresholdUseCase,
+    private val syncCloudDataUseCase: SyncCloudDataUseCase,
+    private val notificationManager: InsoleNotificationManager
 ) : ViewModel() {
 
     private val _sensorState = MutableStateFlow(SensorUiState())
@@ -57,6 +63,10 @@ class SensorViewModel @Inject constructor(
 
     private var timerJob: Job? = null
     private var sessionStartTime: Long = 0L
+
+    private var lastPressureNotifyMs = 0L
+    private var lastThermalNotifyMs = 0L
+    private val NOTIFY_COOLDOWN_MS = 15_000L
 
     init {
         observeSensorData()
@@ -95,6 +105,7 @@ class SensorViewModel @Inject constructor(
                     startSessionTimer()
                 } else {
                     stopSessionTimer()
+                    analyzePressureThresholdUseCase.reset()
                     _sensorState.update { it.copy(
                         isConnected = false,
                         fsrValues = emptyList(),
@@ -136,14 +147,40 @@ class SensorViewModel @Inject constructor(
 
     fun refreshData() {
         viewModelScope.launch {
-            _sensorState.update { it.copy(isRefreshing = true) }
-            delay(1500)
+            _sensorState.update { it.copy(isRefreshing = true, errorMessage = null) }
+            val result = syncCloudDataUseCase()
+            result.onFailure { error ->
+                _sensorState.update { it.copy(errorMessage = error.message) }
+            }
             _sensorState.update { it.copy(isRefreshing = false) }
         }
     }
 
     private fun updateSensorState(sensorData: InsoleSensorData) {
         val alerts = analyzePressureThresholdUseCase(sensorData)
+
+        // Post Android heads-up system notification when alerts fire
+        val now = System.currentTimeMillis()
+        for (alert in alerts) {
+            if (alert.affectedZones.contains("THERMAL")) {
+                if (now - lastThermalNotifyMs >= NOTIFY_COOLDOWN_MS) {
+                    lastThermalNotifyMs = now
+                    notificationManager.sendThermalAlert(
+                        title = "DiabFoot: Temperature Asymmetry",
+                        message = alert.message
+                    )
+                }
+            } else {
+                if (now - lastPressureNotifyMs >= NOTIFY_COOLDOWN_MS) {
+                    lastPressureNotifyMs = now
+                    notificationManager.sendPressureAlert(
+                        title = "DiabFoot: High Pressure Warning",
+                        message = alert.message,
+                        affectedZone = alert.affectedZones.firstOrNull() ?: "FOOT"
+                    )
+                }
+            }
+        }
 
         // Render the per-foot 5×10 pressure grids. A 5-entry payload is the
         // zoned v2 stream; anything else maps to an empty/uniform grid.
@@ -163,7 +200,9 @@ class SensorViewModel @Inject constructor(
             pressureMap = PressureMapState(
                 leftGrid = leftGrid,
                 rightGrid = rightGrid,
-                isZoned = isZoned
+                isZoned = isZoned,
+                leftZonePressures = sensorData.leftZonePressuresKpa,
+                rightZonePressures = sensorData.rightZonePressuresKpa,
             )
         )}
     }

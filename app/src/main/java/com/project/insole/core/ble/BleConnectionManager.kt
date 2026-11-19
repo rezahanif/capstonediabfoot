@@ -68,6 +68,11 @@ class BleConnectionManager @Inject constructor(
                 if (leftAddress == null && rightAddress == null) {
                     Log.d(TAG, "No saved devices, starting scan for pairing")
                     bleManager.startScanning()
+                } else if (leftAddress != null && leftAddress.equals(rightAddress, ignoreCase = true)) {
+                    // Contaminated storage: both slots hold the identical address.
+                    // Connect without forcing a side so GATT service discovery resolves the true hardware side.
+                    Log.w(TAG, "Both slots hold the same address ($leftAddress); connecting to determine true hardware side")
+                    bleManager.connect(leftAddress, isLeft = null)
                 } else {
                     leftAddress?.let {
                         Log.d(TAG, "Reconnecting to saved LEFT insole: $it")
@@ -113,7 +118,7 @@ class BleConnectionManager @Inject constructor(
     }
 
     private fun maybeScheduleRetry(isLeft: Boolean) {
-        if (bleManager.isUserInitiatedDisconnect) return
+        if (bleManager.isUserInitiatedDisconnect || bleManager.isDebugBridgeActive) return
         val address = getSavedDeviceAddress(isLeft) ?: return
         if (retryInFlight(isLeft)) return
         setRetryInFlight(isLeft, true)
@@ -134,7 +139,7 @@ class BleConnectionManager @Inject constructor(
                 val stillBusy = current is BleDeviceState.Connecting ||
                     current is BleDeviceState.Discovering ||
                     current is BleDeviceState.Connected
-                if (stillBusy || bleManager.isUserInitiatedDisconnect || !bleManager.isBluetoothEnabled()) {
+                if (stillBusy || bleManager.isUserInitiatedDisconnect || bleManager.isDebugBridgeActive || !bleManager.isBluetoothEnabled()) {
                     return@launch
                 }
 
@@ -175,9 +180,19 @@ class BleConnectionManager @Inject constructor(
             if (isLeft) {
                 putString(SAVED_LEFT_ADDRESS, deviceAddress)
                 putString(SAVED_LEFT_NAME, deviceName)
+                // If the other slot currently holds the exact same address, clear it
+                if (prefs().getString(SAVED_RIGHT_ADDRESS, null)?.equals(deviceAddress, ignoreCase = true) == true) {
+                    remove(SAVED_RIGHT_ADDRESS)
+                    remove(SAVED_RIGHT_NAME)
+                }
             } else {
                 putString(SAVED_RIGHT_ADDRESS, deviceAddress)
                 putString(SAVED_RIGHT_NAME, deviceName)
+                // If the other slot currently holds the exact same address, clear it
+                if (prefs().getString(SAVED_LEFT_ADDRESS, null)?.equals(deviceAddress, ignoreCase = true) == true) {
+                    remove(SAVED_LEFT_ADDRESS)
+                    remove(SAVED_LEFT_NAME)
+                }
             }
             apply()
         }

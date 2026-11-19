@@ -43,8 +43,9 @@ fun MainScreen(
     val routes = listOf("home_tab", "monitoring_tab", "alert_tab", "trend_tab")
     val selectedIndex = routes.indexOf(currentRoute).coerceAtLeast(0)
 
-    // Shared ViewModel for all sensor data tabs
+    // Shared ViewModels for sensor and notification tabs
     val sensorViewModel: SensorViewModel = hiltViewModel()
+    val notificationsViewModel: NotificationsViewModel = hiltViewModel()
 
     Scaffold(
         containerColor = DashboardColors.Background,
@@ -94,7 +95,7 @@ fun MainScreen(
             }
             composable("alert_tab") {
                 NotificationsScreen(
-                    viewModel = hiltViewModel<NotificationsViewModel>(),
+                    viewModel = notificationsViewModel,
                     onBack = {
                         bottomNavController.navigate("home_tab") {
                             popUpTo("home_tab") { inclusive = true }

@@ -42,14 +42,14 @@ import com.project.insole.features.sensor.presentation.PressureMapState
 // Matches the legend in the reference design exactly.
 
 private val HEATMAP_COLORS = listOf(
-    Color(0xFF0A1172), // 0.00 — deep blue  (no pressure)
-    Color(0xFF0066CC), // 0.15
-    Color(0xFF00AAFF), // 0.30 — cyan
-    Color(0xFF00DDAA), // 0.45 — teal
-    Color(0xFF44FF44), // 0.60 — green
-    Color(0xFFFFFF00), // 0.75 — yellow
-    Color(0xFFFF8800), // 0.88 — orange
-    Color(0xFFFF2200), // 1.00 — red        (peak pressure)
+    DashboardColors.Heatmap00, // 0.00 — deep blue  (no pressure)
+    DashboardColors.Heatmap15, // 0.15
+    DashboardColors.Heatmap30, // 0.30 — cyan
+    DashboardColors.Heatmap45, // 0.45 — teal
+    DashboardColors.Heatmap60, // 0.60 — green
+    DashboardColors.Heatmap75, // 0.75 — yellow
+    DashboardColors.Heatmap88, // 0.88 — orange
+    DashboardColors.Heatmap100 // 1.00 — red        (peak pressure)
 )
 
 private fun heatColor(intensity: Float): Color {
@@ -148,29 +148,44 @@ private fun buildFootPath(w: Float, h: Float, mirrored: Boolean): Path {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// SENSOR ZONE DEFINITIONS
+// ════════════════════════════════════════════════════════════════════════════
+
+private data class SensorZone(
+    val xFrac: Float,
+    val yFrac: Float,
+    val radiusFrac: Float,
+    val defaultWeight: Float = 0.2f,
+)
+
+/**
+ * Anatomical sensor positions for a LEFT foot, matching [com.project.insole.features.sensor.domain.model.FSR_ZONE_ORDER]:
+ *   0 — Hallux        : big-toe pad (medial forefoot, top)
+ *   1 — Metatarsal 1  : 1st met-head (medial ball)
+ *   2 — Metatarsal 2  : 2nd met-head (central ball)
+ *   3 — Metatarsal 4  : 4th met-head (lateral ball)
+ *   4 — Heel          : calcaneus (centre-rear)
+ */
+private val ANATOMICAL_ZONES = listOf(
+    SensorZone(xFrac = 0.28f, yFrac = 0.10f, radiusFrac = 0.20f, defaultWeight = 0.10f), // 0 Hallux
+    SensorZone(xFrac = 0.28f, yFrac = 0.38f, radiusFrac = 0.22f, defaultWeight = 0.25f), // 1 Metatarsal 1
+    SensorZone(xFrac = 0.46f, yFrac = 0.36f, radiusFrac = 0.20f, defaultWeight = 0.20f), // 2 Metatarsal 2
+    SensorZone(xFrac = 0.70f, yFrac = 0.36f, radiusFrac = 0.18f, defaultWeight = 0.15f), // 3 Metatarsal 4
+    SensorZone(xFrac = 0.50f, yFrac = 0.86f, radiusFrac = 0.30f, defaultWeight = 0.30f), // 4 Heel
+)
+
+// ════════════════════════════════════════════════════════════════════════════
 // SINGLE FOOT HEATMAP  (Canvas composable)
 // ════════════════════════════════════════════════════════════════════════════
 
 /**
- * Draws one foot with the real 50-cell pressure grid clipped to the
- * silhouette.
- *
- * @param grid  Row-major 5×10 pressure grid from [MapPressureToGridUseCase]
- *              (50 [Float]s, one generic foot: x = 0 medial, y = 0 toes).
- * @param mirrored         true = right foot (grid columns are reflected on
- *                         the X axis so medial stays medial).
- * @param maxIntensity     Max cell value across BOTH feet's grids — the
- *                         relative intensity divisor. Only used when
- *                         [isZoned]; null means "no pressure anywhere".
- * @param isZoned          true = v2 five-zone payload (relative kPa scale);
- *                         false = legacy single-FSR payload (uniform grid,
- *                         scaled by the 0–255 POC raw range).
- * @param connected        false = BLE device not connected; shows a greyed-out
- *                         silhouette with a dashed border and a "No Signal" label.
+ * Draws one foot with continuous, natural radial gradient heat clouds
+ * mapped to anatomical sensor zones, clipped to the foot silhouette.
  */
 @Composable
 private fun FootHeatmap(
-    grid: List<Float>,
+    zonePressures: List<Float> = emptyList(),
+    grid: List<Float> = emptyList(),
     mirrored: Boolean,
     maxIntensity: Float?,
     isZoned: Boolean,
@@ -179,71 +194,115 @@ private fun FootHeatmap(
 ) {
     Box(modifier = modifier) {
 
-        // ── Heatmap canvas (always drawn; faded when disconnected) ────────────
+        // ── Heatmap canvas ────────────────────────────────────────────────────
         Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .alpha(if (connected) 1f else 0.25f),
+            modifier = Modifier.fillMaxSize(),
         ) {
             val w = size.width
             val h = size.height
 
             val footPath = buildFootPath(w, h, mirrored)
 
-            val cellW = w / MapPressureToGridUseCase.GRID_COLS
-            val cellH = h / MapPressureToGridUseCase.GRID_ROWS
+            if (connected) {
+                // Resolve the 5 zone readings from direct list or fallback 50-cell grid
+                val resolvedZonePressures: List<Float> = when {
+                    zonePressures.size >= 5 -> zonePressures
+                    grid.size >= 50 -> listOf(
+                        grid[0],  // Hallux
+                        grid[10], // MTH1
+                        grid[14], // MTH2
+                        grid[17], // MTH4
+                        grid[30], // Heel
+                    )
+                    zonePressures.isNotEmpty() -> zonePressures
+                    grid.isNotEmpty() -> listOf(grid[0])
+                    else -> emptyList()
+                }
 
-            // ── 1. Dark blue base fill ──────────────────────────────────────────
-            clipPath(footPath) {
-                drawPath(footPath, color = Color(0xFF0A2050))
+                // Count active FSR sensors (threshold > 1.0f kPa to filter continuous noise / firmware drift)
+                val activeSensorsCount = resolvedZonePressures.take(5).count { it > 1.0f }
+                // Only display heat gradient when at least 3 of the 5 sensors are actively sending data;
+                // otherwise maintain the clean connected "idle blue" state without heatmap overlay.
+                val isActivelyStepping = activeSensorsCount >= 3
 
-                // ── 2. Real 50-cell pressure grid, clipped to the silhouette ────
-                // Row-major: row 0 = toe end, row 4 = heel end; column 0 = medial.
-                for (row in 0 until MapPressureToGridUseCase.GRID_ROWS) {
-                    for (col in 0 until MapPressureToGridUseCase.GRID_COLS) {
-                        val value = grid.getOrElse(
-                            row * MapPressureToGridUseCase.GRID_COLS + col,
-                        ) { 0f }
+                // ── 1. Dark blue base fill for connected insole ("idle blue") ────────
+                clipPath(footPath) {
+                    drawPath(footPath, color = DashboardColors.FootSilhouette)
 
-                        val intensity = if (isZoned) {
-                            // Relative scale across both feet — no absolute
-                            // scale exists pre-calibration (TD-11).
-                            if (maxIntensity == null || maxIntensity <= 0f) 0f
-                            else value / maxIntensity
+                    // ── 2. Per-zone smooth radial gradient heat clouds (only when >= 3 sensors active) ───
+                    if (isActivelyStepping) {
+                        val intensities: List<Float> = if (isZoned) {
+                            if (maxIntensity == null || maxIntensity <= 0f) {
+                                List(5) { 0f }
+                            } else {
+                                resolvedZonePressures.map { (it / maxIntensity).coerceIn(0f, 1f) }
+                            }
                         } else {
-                            // Legacy single-FSR payload in the POC raw range.
-                            value / 255f
-                        }
-                        if (intensity < 0.02f) continue   // skip invisible
-
-                        // Right foot mirrors columns: medial col 0 stays medial.
-                        val drawCol = if (mirrored) {
-                            MapPressureToGridUseCase.GRID_COLS - 1 - col
-                        } else {
-                            col
+                            val singleVal = resolvedZonePressures.firstOrNull() ?: 0f
+                            val norm = (singleVal / 255f).coerceIn(0f, 1f)
+                            ANATOMICAL_ZONES.map { zone ->
+                                (norm * zone.defaultWeight * (1f / 0.30f)).coerceIn(0f, 1f)
+                            }
                         }
 
-                        drawRect(
-                            color = heatColor(intensity),
-                            topLeft = Offset(drawCol * cellW, row * cellH),
-                            size = Size(cellW, cellH),
-                        )
+                        ANATOMICAL_ZONES.forEachIndexed { i, zone ->
+                            val intensity = intensities.getOrElse(i) { 0f }
+                            if (intensity < 0.02f) return@forEachIndexed
+
+                            // Mirror flip mapper position horizontally along Y-axis so medial pads stay on the inner side
+                            val zoneX = if (mirrored) w * zone.xFrac else w * (1f - zone.xFrac)
+                            val zoneY = h * zone.yFrac
+                            val radius = kotlin.math.min(w, h) * zone.radiusFrac
+
+                            // Outer soft glow (wide spread, low opacity)
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colorStops = arrayOf(
+                                        0.0f to heatColor(intensity).copy(alpha = intensity * 0.60f),
+                                        0.5f to heatColor(intensity * 0.6f).copy(alpha = intensity * 0.30f),
+                                        1.0f to Color.Transparent,
+                                    ),
+                                    center = Offset(zoneX, zoneY),
+                                    radius = radius * 1.5f,
+                                ),
+                                radius = radius * 1.5f,
+                                center = Offset(zoneX, zoneY),
+                            )
+
+                            // Inner hot core (saturated, bright center)
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colorStops = arrayOf(
+                                        0.0f to heatColor(intensity).copy(alpha = (intensity * 0.95f).coerceAtMost(1f)),
+                                        0.6f to heatColor(intensity * 0.8f).copy(alpha = (intensity * 0.60f).coerceAtMost(1f)),
+                                        1.0f to Color.Transparent,
+                                    ),
+                                    center = Offset(zoneX, zoneY),
+                                    radius = radius,
+                                ),
+                                radius = radius,
+                                center = Offset(zoneX, zoneY),
+                            )
+                        }
                     }
                 }
-            }
 
-            // ── 3. Foot outline stroke (on top of clip, so it stays crisp) ─────
-            drawPath(
-                path   = footPath,
-                color  = Color.White.copy(alpha = 0.30f),
-                style  = Stroke(width = 2.5f),
-            )
+                // ── 3. Foot outline stroke (on top of clip, so it stays crisp) ─────
+                drawPath(
+                    path   = footPath,
+                    color  = Color.White.copy(alpha = 0.30f),
+                    style  = Stroke(width = 2.5f),
+                )
+            } else {
+                // ── Disconnected / No Signal: Honest neutral grey silhouette ─────────
+                clipPath(footPath) {
+                    drawPath(footPath, color = DashboardColors.ProgressTrack)
+                }
 
-            // ── 4. Dashed border outline when disconnected ──────────────────────
-            if (!connected) {
+                // Dashed border outline when disconnected
                 drawPath(
                     path  = footPath,
-                    color = Color(0xFFAAAAAA).copy(alpha = 0.60f),
+                    color = DashboardColors.FootOutlineMuted.copy(alpha = 0.60f),
                     style = Stroke(
                         width      = 3f,
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f),
@@ -262,13 +321,13 @@ private fun FootHeatmap(
                 Icon(
                     imageVector        = Icons.Outlined.BluetoothDisabled,
                     contentDescription = "Not connected",
-                    tint               = Color(0xFF888888),
+                    tint               = DashboardColors.TextGray,
                     modifier           = Modifier.size(22.dp),
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text        = "No Signal",
-                    color       = Color(0xFF888888),
+                    color       = DashboardColors.TextGray,
                     fontSize    = 10.sp,
                     fontWeight  = FontWeight.Medium,
                     textAlign   = TextAlign.Center,
@@ -291,7 +350,7 @@ private fun PressureLegend(modifier: Modifier = Modifier) {
     ) {
         Text(
             text       = "High",
-            color      = Color(0xFFAAAAAA),
+            color      = DashboardColors.FootOutlineMuted,
             fontSize   = 10.sp,
             fontWeight = FontWeight.Medium,
         )
@@ -311,7 +370,7 @@ private fun PressureLegend(modifier: Modifier = Modifier) {
 
         Text(
             text       = "Low",
-            color      = Color(0xFFAAAAAA),
+            color      = DashboardColors.FootOutlineMuted,
             fontSize   = 10.sp,
             fontWeight = FontWeight.Medium,
         )
@@ -343,10 +402,21 @@ fun PlantarPressureCard(
     // ── Connection state — each foot is independent ───────────────────────────
     val anyConnected = leftConnected || rightConnected
 
-    // Relative intensity scale: the strongest cell across BOTH feet's grids.
-    // null = no pressure anywhere (or nothing connected) → all cells skip.
+    // Relative intensity scale: the strongest reading across actively stepping feet (at least 3 active sensors).
+    // null = no pressure anywhere (or nothing connected/stepping) → all cells skip.
+    val leftActive = leftConnected && pressureMap.leftZonePressures.take(5).count { it > 1.0f } >= 3
+    val rightActive = rightConnected && pressureMap.rightZonePressures.take(5).count { it > 1.0f } >= 3
+
+    val allZones = (if (leftActive) pressureMap.leftZonePressures else emptyList()) +
+        (if (rightActive) pressureMap.rightZonePressures else emptyList())
     val maxIntensity = if (pressureMap.isZoned) {
-        (pressureMap.leftGrid + pressureMap.rightGrid).maxOrNull()?.takeIf { it > 0f }
+        if (allZones.isNotEmpty()) {
+            allZones.maxOrNull()?.takeIf { it > 0f }
+        } else {
+            val connectedGrids = (if (leftConnected) pressureMap.leftGrid else emptyList()) +
+                (if (rightConnected) pressureMap.rightGrid else emptyList())
+            connectedGrids.maxOrNull()?.takeIf { it > 0f }
+        }
     } else {
         null
     }
@@ -407,7 +477,7 @@ fun PlantarPressureCard(
                 } else {
                     Surface(
                         shape = RoundedCornerShape(50.dp),
-                        color = Color(0xFFEEEEEE),
+                        color = DashboardColors.ProgressTrack,
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -417,12 +487,12 @@ fun PlantarPressureCard(
                             Icon(
                                 imageVector        = Icons.Outlined.BluetoothDisabled,
                                 contentDescription = null,
-                                tint               = Color(0xFF999999),
+                                tint               = DashboardColors.TextLightGray,
                                 modifier           = Modifier.size(12.dp),
                             )
                             Text(
                                 text       = "OFFLINE",
-                                color      = Color(0xFF999999),
+                                color      = DashboardColors.TextLightGray,
                                 fontSize   = 10.sp,
                                 fontWeight = FontWeight.Bold,
                             )
@@ -448,7 +518,8 @@ fun PlantarPressureCard(
                     modifier = Modifier.weight(1f),
                 ) {
                     FootHeatmap(
-                        grid          = pressureMap.leftGrid,
+                        zonePressures = if (leftConnected) pressureMap.leftZonePressures else emptyList(),
+                        grid          = if (leftConnected) pressureMap.leftGrid else emptyList(),
                         mirrored      = false,
                         maxIntensity  = maxIntensity,
                         isZoned       = pressureMap.isZoned,
@@ -467,13 +538,13 @@ fun PlantarPressureCard(
                                 .size(6.dp)
                                 .background(
                                     color = if (leftConnected) DashboardColors.Green
-                                    else Color(0xFFCCCCCC),
+                                    else DashboardColors.InactiveTrack,
                                     shape = androidx.compose.foundation.shape.CircleShape,
                                 )
                         )
                         Text(
                             text       = "Left",
-                            color      = if (leftConnected) Color(0xFF555555) else Color(0xFFAAAAAA),
+                            color      = if (leftConnected) DashboardColors.TextMuted else DashboardColors.FootOutlineMuted,
                             fontSize   = 11.sp,
                             fontWeight = FontWeight.Medium,
                         )
@@ -495,7 +566,8 @@ fun PlantarPressureCard(
                     modifier = Modifier.weight(1f),
                 ) {
                     FootHeatmap(
-                        grid          = pressureMap.rightGrid,
+                        zonePressures = if (rightConnected) pressureMap.rightZonePressures else emptyList(),
+                        grid          = if (rightConnected) pressureMap.rightGrid else emptyList(),
                         mirrored      = true,
                         maxIntensity  = maxIntensity,
                         isZoned       = pressureMap.isZoned,
@@ -513,13 +585,13 @@ fun PlantarPressureCard(
                                 .size(6.dp)
                                 .background(
                                     color = if (rightConnected) DashboardColors.Green
-                                    else Color(0xFFCCCCCC),
+                                    else DashboardColors.InactiveTrack,
                                     shape = androidx.compose.foundation.shape.CircleShape,
                                 )
                         )
                         Text(
                             text       = "Right",
-                            color      = if (rightConnected) Color(0xFF555555) else Color(0xFFAAAAAA),
+                            color      = if (rightConnected) DashboardColors.TextMuted else DashboardColors.FootOutlineMuted,
                             fontSize   = 11.sp,
                             fontWeight = FontWeight.Medium,
                         )
@@ -575,13 +647,13 @@ private fun PressureReadout(label: String, value: Float, connected: Boolean) {
     ) {
         Text(
             text       = label,
-            color      = Color(0xFFAAAAAA),
+            color      = DashboardColors.FootOutlineMuted,
             fontSize   = 10.sp,
             fontWeight = FontWeight.Medium,
         )
         Text(
             text       = if (connected) "%.0f".format(value) else "– –",
-            color      = if (connected) DashboardColors.Navy else Color(0xFFCCCCCC),
+            color      = if (connected) DashboardColors.Navy else DashboardColors.InactiveTrack,
             fontSize   = 11.sp,
             fontWeight = FontWeight.Bold,
         )

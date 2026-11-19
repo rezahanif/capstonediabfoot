@@ -18,9 +18,8 @@ data class DiagnosticsUiState(
 )
 
 /**
- * ViewModel for the diagnostics screen.
- * Exposes immutable StateFlow for UI consumption.
- * Only accesses domain use cases and repository.
+ * ViewModel for the technical diagnostics screen (TD-4).
+ * Preserves raw numerical sensor readings, RSSI, and protocol metadata for doctor/engineer review.
  */
 @HiltViewModel
 class DiagnosticsViewModel @Inject constructor(
@@ -31,16 +30,16 @@ class DiagnosticsViewModel @Inject constructor(
     private val _diagnosticsState = MutableStateFlow(DiagnosticsUiState())
     val diagnosticsState: StateFlow<DiagnosticsUiState> = _diagnosticsState
 
+    init {
+        refreshDiagnostics()
+    }
+
     fun refreshDiagnostics() {
         viewModelScope.launch {
             _diagnosticsState.value = _diagnosticsState.value.copy(isLoading = true)
             val result = diagnosticsDataSource.getDeviceStatus()
             result.onSuccess { status ->
-                val report = generateDiagnosticReportUseCase(
-                    status.batteryLevel,
-                    status.rssiStrength,
-                    status.connectionState
-                )
+                val report = generateDiagnosticReportUseCase(status)
                 _diagnosticsState.value = DiagnosticsUiState(
                     isLoading = false,
                     diagnosticReport = report
@@ -51,14 +50,6 @@ class DiagnosticsViewModel @Inject constructor(
                     errorMessage = exception.message
                 )
             }
-        }
-    }
-
-    fun calibrateDevice() {
-        viewModelScope.launch {
-            _diagnosticsState.value = _diagnosticsState.value.copy(isLoading = true)
-            diagnosticsDataSource.calibrateDevice()
-            refreshDiagnostics()
         }
     }
 }

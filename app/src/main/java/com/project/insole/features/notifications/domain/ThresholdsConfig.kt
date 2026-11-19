@@ -1,6 +1,7 @@
 package com.project.insole.features.notifications.domain
 
 import com.project.insole.features.sensor.domain.model.SensorConstants
+import kotlin.math.pow
 
 /**
  * Versioned thresholds for the patient prompt rules (TD-8).
@@ -24,14 +25,21 @@ data class ThresholdsConfig(
     val thermalPersistenceCount: Int,
     /** Thermal prompt silence window, in minutes. */
     val thermalCooldownMinutes: Int,
-    /** Per-foot pressure (device scale) above which a pressure prompt may fire. */
+    /** Per-foot pressure (kPa) above which a pressure prompt may fire. */
     val pressureWarning: Int,
     /** Pressure prompt silence window per foot, in minutes. */
-    val pressureCooldownMinutes: Int
+    val pressureCooldownMinutes: Int,
+    /** Consecutive abnormal evaluations required before the pressure prompt fires (Rule R2). Default 3. */
+    val pressurePersistenceCount: Int = 3,
+    /** Patient body weight in kg. Null falls back to DEFAULT_REFERENCE_WEIGHT_KG (60.0 kg). */
+    val userWeightKg: Float? = null
 ) {
     companion object {
+        const val DEFAULT_REFERENCE_WEIGHT_KG = SensorConstants.DEFAULT_REFERENCE_WEIGHT_KG
+        const val MAX_SCALED_PRESSURE_WARNING_KPA = 2800
+
         /**
-         * Bundled defaults — the POC-tuned values, versioned "v1" to match
+         * Bundled defaults — physical kPa calibrated values, versioned "v1" to match
          * the DATA_CONTRACT. Mirrors SensorConstants so the two cannot drift.
          */
         val DEFAULT = ThresholdsConfig(
@@ -40,7 +48,23 @@ data class ThresholdsConfig(
             thermalPersistenceCount = 3,
             thermalCooldownMinutes = 60,
             pressureWarning = SensorConstants.PRESSURE_THRESHOLD_WARNING,
-            pressureCooldownMinutes = 30
+            pressureCooldownMinutes = 30,
+            pressurePersistenceCount = 3,
+            userWeightKg = null
         )
+    }
+
+    /**
+     * Calculates the effective pressure warning threshold (kPa) scaled by body weight.
+     * Uses allometric scaling (mass^0.67) relative to the 60.0 kg reference subject.
+     * Capped at MAX_SCALED_PRESSURE_WARNING_KPA for patient tissue safety.
+     */
+    fun effectivePressureWarning(): Int {
+        val weight = userWeightKg ?: DEFAULT_REFERENCE_WEIGHT_KG
+        if (weight <= 0f) return pressureWarning
+        val scaleRatio = (weight / DEFAULT_REFERENCE_WEIGHT_KG).toDouble()
+        val factor = scaleRatio.pow(0.67)
+        val scaled = (pressureWarning * factor).toInt()
+        return scaled.coerceAtMost(MAX_SCALED_PRESSURE_WARNING_KPA)
     }
 }

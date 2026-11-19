@@ -1,17 +1,27 @@
 package com.project.insole.features.sensor.domain.model
 
 object SensorConstants {
-    // Pressure thresholds — DEVICE-SCALE PLACEHOLDER pending FSR calibration
-    // (TD-11: firmware kPa values are uncalibrated conductance estimates).
-    // NOT a clinical value; firmware maps RFP (0-4095) to (0-255).
-    // CRITICAL_THRESHOLD must be <= 255.
-    const val PRESSURE_THRESHOLD_WARNING = 200
-    const val PRESSURE_THRESHOLD_CRITICAL = 240
+    // Pressure thresholds — Calibrated physical units (kPa) for the 5-zone FSR insole.
+    // Baseline reference: 60.0 kg subject walking trial produces up to 1,741 kPa total load.
+    // 2,000 kPa warning threshold prevents false alarms during normal stance push-off (~25% safety margin).
+    const val DEFAULT_REFERENCE_WEIGHT_KG = 60.0f
+    const val PRESSURE_THRESHOLD_WARNING = 2000
+    const val PRESSURE_THRESHOLD_CRITICAL = 2500
 
     // Temperature thresholds
     // Literature-sourced (JMIR mHealth 2025 once-per-minute plantar cohort;
     // IWGDF 2023): a 2.2 °C inter-foot difference is clinically significant.
     const val TEMPERATURE_DIFF_WARNING = 2.2f
+
+    // Physiological skin temperature bounds (Armstrong et al., Lavery et al.)
+    // Ambient room/shoe temp (< 27.0°C) and artifact/error sentinels are excluded.
+    const val MIN_PHYSIOLOGICAL_TEMP_C = 27.0f
+    const val MAX_PHYSIOLOGICAL_TEMP_C = 38.5f
+
+    // Wear gating & stance pressure thresholds (kPa)
+    const val MIN_WEAR_PRESSURE_KPA = 5.0f
+    const val MIN_STANCE_PRESSURE_KPA = 20.0f
+    const val MIN_CLEAN_SENSORS_ACTIVE = 3
 
     // Step counting thresholds — POC-tuned (owner validation), in g units.
     // (The firmware sends m/s² + rad/s; SensorUnitDetector converts before

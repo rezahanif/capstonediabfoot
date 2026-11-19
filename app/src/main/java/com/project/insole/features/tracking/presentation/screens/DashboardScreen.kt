@@ -7,14 +7,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.project.insole.features.notifications.domain.OverallStatus
 import com.project.insole.features.sensor.presentation.SensorViewModel
 import com.project.insole.features.sensor.presentation.components.StepsMetricCard
 import com.project.insole.features.tracking.presentation.components.*
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 
 /**
- * Dashboard screen showing SUMMARY view of all sensor features.
- * Redesigned from the Figma CAPSTONE node 11-2164.
- * Moved to tracking feature for better organization.
+ * Dashboard screen showing truthful, clinical-grade summary of sensor telemetry.
+ * Fully aligned with UX-BRAND-SPEC (Rules R1 - R7).
  */
 @Composable
 fun DashboardScreen(
@@ -26,6 +30,30 @@ fun DashboardScreen(
 ) {
     val state = viewModel.sensorState.collectAsState().value
     val bleState = bleViewModel.bleState.collectAsState().value
+
+    val isConnected = bleState.isLeftConnected || bleState.isRightConnected
+    val isConnecting = bleState.isEitherConnecting
+
+    // Rule R5: "No recent data is never shown as All Clear."
+    val overallStatus = when {
+        !isConnected -> OverallStatus.NO_DATA
+        state.thresholdAlerts.isNotEmpty() -> OverallStatus.ATTENTION
+        else -> OverallStatus.ALL_CLEAR
+    }
+
+    val lastCheckTime = if (isConnected) {
+        DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault()).format(Instant.now())
+    } else null
+
+    // Bilateral pressure symmetry calculation
+    val leftPeak = bleState.leftPeakPressure
+    val rightPeak = bleState.rightPeakPressure
+    val pressureBalanceText = when {
+        !bleState.isBothConnected -> "N/A"
+        leftPeak == 0f && rightPeak == 0f -> "Balanced"
+        abs(leftPeak - rightPeak) <= 30f -> "Balanced"
+        else -> "Uneven"
+    }
 
     Column(
         modifier = Modifier
@@ -39,16 +67,21 @@ fun DashboardScreen(
             onLogout = onLogout
         )
 
-        // 2 ── Greeting / Header ──────────────────────────────────────────
+        // 2 ── Greeting / Header (Dynamic time-of-day + live check badge) ─
         GreetingSection(
-            userName = "Reza", // In real app: get from Auth state
-            lastCheckTime = "10:42 AM" // In real app: get from sensor state timestamp
+            userName = "Reza",
+            lastCheckTime = lastCheckTime,
+            isConnected = isConnected,
+            isConnecting = isConnecting
         )
 
-        // 3 ── Status Card ────────────────────────────────────────────────
-        SystemStatusCard()
+        // 3 ── Status Card (Dynamic R5 enforcement) ───────────────────────
+        SystemStatusCard(
+            status = overallStatus,
+            isConnecting = isConnecting
+        )
 
-        // 4 ── Insole Battery Cards ───────────────────────────────────────
+        // 4 ── Insole Power & Battery Cards (Honest TD-13 state) ──────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -59,19 +92,20 @@ fun DashboardScreen(
             InsoleBatteryCard(
                 modifier = Modifier.weight(1f),
                 side = "LEFT INSOLE",
-                batteryPct = state.batteryLevel,
-                isConnected = bleState.isLeftConnected, // ✅ Real state
+                batteryPct = state.batteryLevel.takeIf { it > 0 },
+                isConnected = bleState.isLeftConnected,
+                pressureBalanceText = pressureBalanceText,
                 onClick = onNavigateToPairing
             )
             InsoleBatteryCard(
                 modifier = Modifier.weight(1f),
                 side = "RIGHT INSOLE",
-                batteryPct = state.batteryLevel, 
-                isConnected = bleState.isRightConnected, // ✅ Real state
+                batteryPct = state.batteryLevel.takeIf { it > 0 },
+                isConnected = bleState.isRightConnected,
+                pressureBalanceText = pressureBalanceText,
                 onClick = onNavigateToPairing
             )
         }
-
 
         // 5 ── Metrics Cards (Temperature | Steps) ───────────────────────
         Row(

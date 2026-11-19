@@ -1,30 +1,40 @@
 package com.project.insole.features.notifications.data
 
+import com.project.insole.core.network.InsoleApiClient
+import com.project.insole.core.network.InsoleAuthService
 import com.project.insole.features.notifications.domain.ThresholdsConfig
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Remote source for the versioned thresholds config.
- *
- * Endpoint contract (served by cloud/server): `GET /v1/config/thresholds`
- *
- * ```json
- * {"version":"v1","thermal_delta_warning_c":2.2,"thermal_persistence_count":3,
- *  "thermal_cooldown_minutes":60,"pressure_warning":200,"pressure_cooldown_minutes":30}
- * ```
- *
- * SCAFFOLD (TD-4/TD-8 pattern): the app has no HTTP client yet — the sync
- * module will implement [fetch] against the endpoint above and map the
- * snake_case JSON onto [ThresholdsConfig]. Until then this always fails and
- * the repository keeps serving the cached/bundled config.
+ * Fetches active clinical thresholds from GET /v1/config/thresholds.
  */
 @Singleton
-class ThresholdsConfigRemoteDataSource @Inject constructor() {
-
+class ThresholdsConfigRemoteDataSource @Inject constructor(
+    private val apiClient: InsoleApiClient,
+    private val authService: InsoleAuthService
+) {
     suspend fun fetch(): Result<ThresholdsConfig> {
-        return Result.failure(
-            IllegalStateException("Cloud sync module not wired yet — no HTTP client in the app")
-        )
+        val sessionResult = authService.ensureSession()
+        if (sessionResult.isFailure) {
+            return Result.failure(sessionResult.exceptionOrNull()!!)
+        }
+
+        val result = apiClient.get("/v1/config/thresholds")
+        return result.mapCatching { jsonStr ->
+            val json = JSONObject(jsonStr)
+            ThresholdsConfig(
+                version = json.getString("version"),
+                thermalDeltaWarningC = json.getDouble("thermal_delta_warning_c").toFloat(),
+                thermalPersistenceCount = json.getInt("thermal_persistence_count"),
+                thermalCooldownMinutes = json.getInt("thermal_cooldown_minutes"),
+                pressureWarning = json.getInt("pressure_warning"),
+                pressureCooldownMinutes = json.getInt("pressure_cooldown_minutes"),
+                pressurePersistenceCount = json.optInt("pressure_persistence_count", ThresholdsConfig.DEFAULT.pressurePersistenceCount),
+                userWeightKg = if (json.has("user_weight_kg") && !json.isNull("user_weight_kg")) json.getDouble("user_weight_kg").toFloat() else null
+            )
+        }
     }
 }

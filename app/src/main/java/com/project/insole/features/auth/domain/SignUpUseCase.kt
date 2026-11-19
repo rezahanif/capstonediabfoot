@@ -1,19 +1,28 @@
 package com.project.insole.features.auth.domain
 
-import kotlinx.coroutines.delay
+import com.project.insole.features.auth.data.AuthResult
+import com.project.insole.features.auth.data.RemoteDataSource
 import javax.inject.Inject
 
 /**
- * Handles user registration.
- * Mocked for now, simulates a network delay and returns success.
+ * Handles user registration via Insole Cloud API.
  */
-class SignUpUseCase @Inject constructor() {
-    suspend operator fun invoke(email: String, password: String): Result<String> {
-        delay(1500) // Simulate network delay
-        return if (email.contains("@")) {
-            Result.success("User registered successfully")
-        } else {
-            Result.failure(Exception("Invalid email format"))
+class SignUpUseCase @Inject constructor(
+    private val remoteDataSource: RemoteDataSource
+) {
+    suspend operator fun invoke(email: String, password: String, displayName: String = ""): Result<AuthResult> {
+        val trimmed = email.trim()
+        if (!trimmed.contains("@")) {
+            return Result.failure(IllegalArgumentException("Please enter a valid email address"))
+        }
+        if (password.length < 6) {
+            return Result.failure(IllegalArgumentException("Password must be at least 6 characters"))
+        }
+        return remoteDataSource.signUp(trimmed, password, displayName).mapCatching { authResult ->
+            if (authResult.role.lowercase() != "patient") {
+                throw IllegalStateException("This app is for patients only. Doctors can sign in through the Doctor Web Portal.")
+            }
+            authResult
         }
     }
 }

@@ -5,10 +5,10 @@ import kotlin.math.sqrt
 
 /**
  * CHANGE from original: accept a [Clock] parameter (default = [SystemClock]).
- * Every other line is identical to the original.
- *
- * This single constructor change is all that is needed to make the
- * entire FSM fully testable without Thread.sleep().
+ * Biomechanical upgrade: integrates FSR plantar pressure fusion with IMU motion energy.
+ * When FSR data is streaming, a step requires unweighted swing before stance contact,
+ * completely eliminating phantom steps during static standing and sitting.
+ * Falls back to pure IMU step counting when FSR data is absent.
  */
 class WalkingFSM(private val clock: Clock = SystemClock) {
 
@@ -20,6 +20,15 @@ class WalkingFSM(private val clock: Clock = SystemClock) {
          * TRANSITION indefinitely. 2000 ms ≈ 10 packets at the 5 Hz rate.
          */
         const val TRANSITION_TIMEOUT_MS = 2000L
+
+        /** Minimum physiological step refractory period (400 ms ≈ 2.5 steps/sec max cadence). */
+        const val STEP_REFRACTORY_PERIOD_MS = 400L
+
+        /** FSR unweighting threshold during swing phase (kPa). */
+        const val FSR_SWING_THRESHOLD_KPA = 40f
+
+        /** FSR ground touchdown threshold during stance phase (kPa). */
+        const val FSR_STANCE_THRESHOLD_KPA = 60f
     }
 
     // ── EMA ──────────────────────────────────────────────────────────────────
@@ -41,10 +50,12 @@ class WalkingFSM(private val clock: Clock = SystemClock) {
     private var walkingTimerMs  = 0L
     private var standingTimerMs = 0L
 
-    // ── Step counter ──────────────────────────────────────────────────────────
+    // ── Step counter & Biomechanical Fusion ───────────────────────────────────
     var stepCount = 0;  internal set
 
     private var stepTriggered = false
+    private var swingUnweighted = false
+    private var lastStepTimeMs = 0L
 
     // ─────────────────────────────────────────────────────────────────────────
     private fun ema(input: Float, prev: Float) = alpha * input + (1f - alpha) * prev
@@ -108,17 +119,42 @@ class WalkingFSM(private val clock: Clock = SystemClock) {
             }
         }
 
-        // ── Step detection ────────────────────────────────────────────────────
-        if (state == WalkState.WALKING || state == WalkState.TRANSITION) {
-            if (accelMag > SensorConstants.STEP_THRESHOLD && !stepTriggered) {
-                stepTriggered = true
-                stepCount++
-            }
-            if (accelMag < SensorConstants.MOTION_STOP_THRESHOLD) {
+        // ── Step detection (Biomechanical Fusion) ─────────────────────────────
+        val totalPressure = packet.pressure
+        val hasFsr = packet.pressuresKpa.isNotEmpty()
+
+        if (hasFsr) {
+            // 1. Swing unweighting phase
+            if (totalPressure < FSR_SWING_THRESHOLD_KPA || (gyroMag > 20.0f && totalPressure < 80.0f)) {
+                swingUnweighted = true
                 stepTriggered = false
             }
+
+            // 2. Stance touchdown after swing
+            if (state == WalkState.WALKING || state == WalkState.TRANSITION) {
+                val isStanceImpact = totalPressure >= FSR_STANCE_THRESHOLD_KPA
+                val refractoryOk = (now - lastStepTimeMs) >= STEP_REFRACTORY_PERIOD_MS
+
+                if (swingUnweighted && isStanceImpact && refractoryOk) {
+                    stepTriggered = true
+                    swingUnweighted = false
+                    lastStepTimeMs = now
+                    stepCount++
+                }
+            }
         } else {
-            stepTriggered = false
+            // Pure IMU fallback (when FSR data is not present, e.g. tests or legacy v1)
+            if (state == WalkState.WALKING || state == WalkState.TRANSITION) {
+                if (accelMag > SensorConstants.STEP_THRESHOLD && !stepTriggered) {
+                    stepTriggered = true
+                    stepCount++
+                }
+                if (accelMag < SensorConstants.MOTION_STOP_THRESHOLD) {
+                    stepTriggered = false
+                }
+            } else {
+                stepTriggered = false
+            }
         }
 
         return stepCount
@@ -134,6 +170,7 @@ class WalkingFSM(private val clock: Clock = SystemClock) {
     fun onStreamStalled() {
         state              = WalkState.STANDING
         stepTriggered      = false
+        swingUnweighted    = false
         standingTimerMs    = 0L
         walkingTimerMs     = 0L
     }
@@ -141,6 +178,8 @@ class WalkingFSM(private val clock: Clock = SystemClock) {
     fun reset() {
         stepCount          = 0
         stepTriggered      = false
+        swingUnweighted    = false
+        lastStepTimeMs     = 0L
         state              = WalkState.STANDING
         filterInit         = false
         previousTotalAccel = 1.0f

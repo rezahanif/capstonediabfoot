@@ -1,5 +1,8 @@
 package com.project.insole.features.auth.domain
 
+import com.project.insole.core.network.SessionManager
+import com.project.insole.features.auth.data.AuthResult
+import com.project.insole.features.auth.data.RemoteDataSource
 import javax.inject.Inject
 
 /**
@@ -7,27 +10,37 @@ import javax.inject.Inject
  * No Android or BLE dependencies here - only business logic.
  */
 
-class LoginUseCase @Inject constructor() {
-    suspend operator fun invoke(email: String, password: String): Result<String> {
-        // Validate inputs
-        if (email.isEmpty() || password.isEmpty()) {
+class LoginUseCase @Inject constructor(
+    private val remoteDataSource: RemoteDataSource
+) {
+    suspend operator fun invoke(email: String, password: String): Result<AuthResult> {
+        val trimmedEmail = email.trim()
+        if (trimmedEmail.isEmpty() || password.isEmpty()) {
             return Result.failure(IllegalArgumentException("Email and password cannot be empty"))
         }
-        // Business logic for login
-        return Result.success("user_id")
+        val result = remoteDataSource.signIn(trimmedEmail, password)
+        return result.mapCatching { authResult ->
+            if (authResult.role.lowercase() != "patient") {
+                throw IllegalStateException("This app is for patients only. Doctors can sign in through the Doctor Web Portal.")
+            }
+            authResult
+        }
     }
 }
 
-class LogoutUseCase @Inject constructor() {
+class LogoutUseCase @Inject constructor(
+    private val sessionManager: SessionManager
+) {
     suspend operator fun invoke(): Result<Unit> {
-        // Business logic for logout
+        sessionManager.clearSession()
         return Result.success(Unit)
     }
 }
 
-class CheckSessionUseCase @Inject constructor() {
-    suspend operator fun invoke(): Result<String> {
-        // Check if user is already authenticated
-        return Result.success("user_id")
+class CheckSessionUseCase @Inject constructor(
+    private val sessionManager: SessionManager
+) {
+    operator fun invoke(): Boolean {
+        return sessionManager.isAuthenticated()
     }
 }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Release: HTTPS only. Cleartext dev hosts are declared in
+         src/debug/res/xml/network_security_config.xml and never ship. -->
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

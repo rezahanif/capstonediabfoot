@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -18,6 +20,12 @@ import androidx.compose.ui.unit.sp
 import com.project.insole.core.theme.DashboardColors
 import com.project.insole.features.sensor.domain.model.SensorConstants
 
+/**
+ * Temperature asymmetry status card for the patient Live Monitor screen.
+ * Strictly adheres to UX-BRAND-SPEC Rule R1 (no raw ΔT numbers to patients;
+ * raw clinical values are preserved in Doctor Diagnostics).
+ * Rule R5 (no fake all-clear on empty data) and R6 (calm Yellow for attention).
+ */
 @Composable
 fun TempAsymmetryCard(
     leftTemp: Float,
@@ -25,11 +33,28 @@ fun TempAsymmetryCard(
     modifier: Modifier = Modifier
 ) {
     val diff = kotlin.math.abs(leftTemp - rightTemp)
-    // 2.2 °C asymmetry is the clinically significant threshold (SensorConstants) —
-    // only flag the reading when it is actually reached.
-    val isClinicallySignificant = leftTemp > 0f && rightTemp > 0f &&
-        diff >= SensorConstants.TEMPERATURE_DIFF_WARNING
-    val pillColor = if (isClinicallySignificant) DashboardColors.Yellow else DashboardColors.TextMuted
+    val hasBothReadings = leftTemp > 0f && rightTemp > 0f
+
+    val (pillColor, textColor, label, icon) = when {
+        !hasBothReadings -> Quad(
+            DashboardColors.ProgressTrack,
+            DashboardColors.TextMuted,
+            "NO DATA",
+            Icons.Default.Info
+        )
+        diff >= SensorConstants.TEMPERATURE_DIFF_WARNING -> Quad(
+            DashboardColors.Yellow,
+            Color.White,
+            "TIME TO CHECK",
+            Icons.Default.Warning
+        )
+        else -> Quad(
+            DashboardColors.GreenMint,
+            Color.White,
+            "BALANCED",
+            Icons.Default.CheckCircle
+        )
+    }
 
     Card(
         modifier = modifier
@@ -47,14 +72,20 @@ fun TempAsymmetryCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = "TEMPERATURE ASYMMETRY",
-                color = DashboardColors.TextMuted,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "TEMPERATURE BALANCE",
+                    color = DashboardColors.TextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.5.sp
+                )
+                Text(
+                    text = if (hasBothReadings) "Bilateral insole thermal status" else "Awaiting readings from both feet",
+                    color = DashboardColors.TextLightGray,
+                    fontSize = 12.sp
+                )
+            }
 
             Surface(
                 shape = RoundedCornerShape(50.dp),
@@ -65,20 +96,23 @@ fun TempAsymmetryCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Warning,
+                        imageVector = icon,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = textColor,
                         modifier = Modifier.size(15.dp)
                     )
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(6.dp))
                     Text(
-                        text = "Δ %.1f°C".format(diff),
-                        color = Color.White,
+                        text = label,
+                        color = textColor,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
                     )
                 }
             }
         }
     }
 }
+
+private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)

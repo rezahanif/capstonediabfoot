@@ -25,12 +25,14 @@ class StepCounterService @Inject constructor(
     private val hourlyStepDao: HourlyStepDao
 ) {
     private val counter = DualFootStepCounter()
-    private var lastResetDayOfYear: Int = LocalDate.now().dayOfYear
-    private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
-
     // DateTimeFormatter is immutable and thread-safe, unlike SimpleDateFormat —
     // this instance is read from multiple concurrent coroutines below.
     private val dateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    private var activeDate: String = LocalDate.now().format(dateFormatter)
+    private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
+
+    private val _totalStepsFlow = MutableStateFlow(0)
+    val totalStepsFlow: StateFlow<Int> = _totalStepsFlow
 
     private val _hourlyStepsFlow = MutableStateFlow<List<Int>>(List(24) { 0 })
     val hourlyStepsFlow: StateFlow<List<Int>> = _hourlyStepsFlow
@@ -39,16 +41,34 @@ class StepCounterService @Inject constructor(
         loadStepsFromDb()
         cleanupOldHistory()
         observeHourlyDb()
+        startDayChangeWatchdog()
+    }
+
+    private fun startDayChangeWatchdog() {
+        serviceScope.launch {
+            while (true) {
+                delay(1000L)
+                val nowStr = LocalDate.now().format(dateFormatter)
+                if (nowStr != activeDate) {
+                    checkDailyReset(nowStr)
+                }
+            }
+        }
     }
 
     private fun loadStepsFromDb() {
         serviceScope.launch {
             val todayStr = LocalDate.now().format(dateFormatter)
+            activeDate = todayStr
             val entity = stepDao.getStepsForDate(todayStr)
             if (entity != null) {
                 // Restore both feet so left/right metrics stay truthful
                 // after a restart (the old code dumped everything into LEFT).
                 counter.setInitialSteps(entity.count, entity.leftCount, entity.rightCount)
+                _totalStepsFlow.value = entity.count
+            } else {
+                counter.reset()
+                _totalStepsFlow.value = 0
             }
         }
     }
@@ -89,6 +109,7 @@ class StepCounterService @Inject constructor(
         }
 
         if (total > prevTotal) {
+            _totalStepsFlow.value = total
             val diff = total - prevTotal
             updateHourlySteps(diff)
             saveStepsToDb(total, counter.leftSteps, counter.rightSteps)
@@ -134,14 +155,16 @@ class StepCounterService @Inject constructor(
         }
     }
 
-    private fun checkDailyReset() {
-        val currentDay = LocalDate.now().dayOfYear
-        if (currentDay != lastResetDayOfYear) {
-            reset()
+    fun checkDailyReset(targetDate: String = LocalDate.now().format(dateFormatter)): Boolean {
+        if (targetDate != activeDate) {
+            android.util.Log.i("StepCounterService", "Day reset triggered: date changed from $activeDate to $targetDate")
+            activeDate = targetDate
+            resetForDate(targetDate)
             cleanupOldHistory()
-            lastResetDayOfYear = currentDay
-            observeHourlyDb() // Refresh observer for new day
+            observeHourlyDb()
+            return true
         }
+        return false
     }
 
     val totalSteps: Int get() = counter.totalSteps
@@ -151,17 +174,24 @@ class StepCounterService @Inject constructor(
     fun combinedAccelMag(leftPresent: Boolean, rightPresent: Boolean): Float =
         counter.combinedAccelMag(leftPresent, rightPresent)
 
-    fun reset() {
+    fun resetForDate(dateStr: String = LocalDate.now().format(dateFormatter)) {
         counter.reset()
+        _totalStepsFlow.value = 0
+        _hourlyStepsFlow.value = List(24) { 0 }
+        saveJob?.cancel()
         serviceScope.launch {
             stepDao.insertOrUpdateSteps(
                 StepEntity(
-                    date = LocalDate.now().format(dateFormatter),
+                    date = dateStr,
                     count = 0,
                     leftCount = 0,
                     rightCount = 0
                 )
             )
         }
+    }
+
+    fun reset() {
+        resetForDate(LocalDate.now().format(dateFormatter))
     }
 }

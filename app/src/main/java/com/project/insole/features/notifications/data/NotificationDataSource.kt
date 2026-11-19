@@ -1,92 +1,119 @@
 package com.project.insole.features.notifications.data
 
-import com.project.insole.features.sensor.domain.model.InsoleSensorData
+import com.project.insole.core.database.dao.NotificationDao
+import com.project.insole.core.database.entity.NotificationEntity
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import java.util.UUID
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Data source for notification management.
- * Fetches and stores notification history from local database.
+ * Fetches and stores patient guidance notification history in local Room database.
  */
-class NotificationDataSource @Inject constructor() {
+@Singleton
+class NotificationDataSource @Inject constructor(
+    private val notificationDao: NotificationDao
+) {
 
     /**
-     * Saves notification to local database.
+     * Observes recent notification history from Room as a reactive Flow.
      */
-    suspend fun saveNotification(title: String, message: String, severity: String): Result<Unit> {
-        return try {
-            // Save to local DB
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
+    fun getNotificationsFlow(limit: Int = 50): Flow<List<NotificationRecord>> {
+        return notificationDao.getRecentNotificationsFlow(limit).map { entities ->
+            entities.map { it.toRecord() }
         }
     }
 
     /**
-     * Fetches notification history.
-     * Returns correlated preview history reflecting recent activity and alerts.
+     * Fetches notification history from Room database.
      */
     suspend fun getNotificationHistory(limit: Int = 50): Result<List<NotificationRecord>> {
         return try {
-            val now = System.currentTimeMillis()
-            val oneDayMs = 24 * 60 * 60 * 1000L
-            val records = listOf(
-                NotificationRecord(
-                    id = "alert-1",
-                    title = "Elevated right metatarsal pressure",
-                    message = "Higher sustained pressure detected during yesterday's peak walking session.",
-                    severity = "WARNING",
-                    timestamp = now - 1 * oneDayMs + (4 * 3600 * 1000L),
-                    read = false
-                ),
-                NotificationRecord(
-                    id = "alert-2",
-                    title = "Mild thermal asymmetry",
-                    message = "Right foot was 1.6 °C warmer than left foot following your evening walk.",
-                    severity = "ELEVATED",
-                    timestamp = now - 3 * oneDayMs,
-                    read = true
-                ),
-                NotificationRecord(
-                    id = "alert-3",
-                    title = "Symmetric pressure distribution",
-                    message = "Even weight distribution maintained across 5,840 steps.",
-                    severity = "INFO",
-                    timestamp = now - 5 * oneDayMs,
-                    read = true
-                ),
-                NotificationRecord(
-                    id = "alert-4",
-                    title = "Daily activity target reached",
-                    message = "Completed morning routine within target pressure limits.",
-                    severity = "INFO",
-                    timestamp = now - 6 * oneDayMs,
-                    read = true
-                )
-            )
-            Result.success(records)
+            val entities = notificationDao.getRecentNotifications(limit)
+            Result.success(entities.map { it.toRecord() })
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
     /**
-     * Clears old notifications.
+     * Saves a guidance or alert notification event to Room.
      */
-    suspend fun clearOldNotifications(hoursAgo: Int = 24): Result<Unit> {
+    suspend fun saveNotification(
+        promptId: String,
+        title: String,
+        message: String,
+        severity: String,
+        foot: String? = null,
+        thresholdVersion: String = "v1"
+    ): Result<Unit> {
         return try {
-            // Delete from local DB
+            val entity = NotificationEntity(
+                id = UUID.randomUUID().toString(),
+                promptId = promptId,
+                title = title,
+                message = message,
+                severity = severity,
+                foot = foot,
+                timestamp = System.currentTimeMillis(),
+                thresholdVersion = thresholdVersion,
+                read = false
+            )
+            notificationDao.insertNotification(entity)
+            notificationDao.deleteOldNotifications(keepLimit = 100)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
+
+    /**
+     * Marks a notification as read.
+     */
+    suspend fun markAsRead(id: String): Result<Unit> {
+        return try {
+            notificationDao.markAsRead(id)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Trims older notifications keeping the most recent [keepLimit] records.
+     */
+    suspend fun clearOldNotifications(keepLimit: Int = 50): Result<Unit> {
+        return try {
+            notificationDao.deleteOldNotifications(keepLimit)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun NotificationEntity.toRecord(): NotificationRecord = NotificationRecord(
+        id = id,
+        promptId = promptId,
+        title = title,
+        message = message,
+        severity = severity,
+        foot = foot,
+        timestamp = timestamp,
+        thresholdVersion = thresholdVersion,
+        read = read
+    )
 }
 
 data class NotificationRecord(
     val id: String,
+    val promptId: String = "",
     val title: String,
     val message: String,
     val severity: String,
+    val foot: String? = null,
     val timestamp: Long,
+    val thresholdVersion: String = "v1",
     val read: Boolean = false
 )

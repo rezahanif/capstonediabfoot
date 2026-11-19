@@ -53,6 +53,24 @@ object SensorPacketParser {
         }
     }
 
+    /**
+     * Parses a batched multi-line payload containing one or more newline-separated
+     * stream lines and/or heartbeat lines. Returns an ordered list of all successfully
+     * parsed packets. Malformed individual lines are skipped without dropping valid frames.
+     */
+    fun parseBatch(raw: String): List<SensorPacket> {
+        val lines = raw.trim().lines()
+        if (lines.isEmpty()) return emptyList()
+        val result = ArrayList<SensorPacket>(lines.size)
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.isNotEmpty()) {
+                parse(trimmed)?.let { result.add(it) }
+            }
+        }
+        return result
+    }
+
     /** "T,<tempC>[,<batteryPercent>]" — no IMU, no pressure. */
     private fun parseTemperatureLine(fields: List<String>): SensorPacket? {
         if (fields.size < 2) return null

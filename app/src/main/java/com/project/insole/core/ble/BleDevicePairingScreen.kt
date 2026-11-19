@@ -48,7 +48,7 @@ fun BleDevicePairingScreen(
             is BleDeviceState.Connecting -> {
                 toastData = ToastData(
                     title = "Pairing",
-                    description = "Connecting to insole device...",
+                    description = "Connecting to your smart insoles...",
                     type = ToastType.Pairing,
                     isVisible = true
                 )
@@ -56,7 +56,7 @@ fun BleDevicePairingScreen(
             is BleDeviceState.Connected -> {
                 toastData = ToastData(
                     title = "Success!",
-                    description = "Insole connected successfully.",
+                    description = "Smart insoles connected and ready.",
                     type = ToastType.Success,
                     isVisible = true
                 )
@@ -131,7 +131,7 @@ fun BleDevicePairingScreen(
                         .fillMaxWidth()
                         .padding(top = 16.dp),
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = DashboardColors.CardBg),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Row(
@@ -206,8 +206,8 @@ fun BleDevicePairingScreen(
                         contentPadding = PaddingValues(bottom = 24.dp)
                     ) {
                         items(state.scannedDevices) { device ->
-                            // Identify the exact side of this specific device card
-                            val side = remember(device.serviceUuid) { InsoleUUIDs.identifySide(device.serviceUuid) }
+                            // Identify the exact side of this specific device card (UUID or Name)
+                            val side = remember(device.serviceUuid, device.name) { InsoleUUIDs.identifySide(device.serviceUuid, device.name) }
 
                             // Check connection states independently based on the identified hardware side
                             val isCurrentDeviceConnected = when (side) {
@@ -219,7 +219,14 @@ fun BleDevicePairingScreen(
                             DeviceCard(
                                 device = device,
                                 isConnected = isCurrentDeviceConnected, // Target isolated flag state
-                                onConnect = { viewModel.connectToDevice(device.address) }
+                                onConnect = {
+                                    val isLeft = when (side) {
+                                        "LEFT" -> true
+                                        "RIGHT" -> false
+                                        else -> null
+                                    }
+                                    viewModel.connectToDevice(device.address, isLeft)
+                                }
                             )
                         }
                     }
@@ -264,7 +271,7 @@ private fun DeviceCard(
     isConnected: Boolean,
     onConnect: () -> Unit
 ) {
-    val side = remember(device.serviceUuid) { InsoleUUIDs.identifySide(device.serviceUuid) }
+    val side = remember(device.serviceUuid, device.name) { InsoleUUIDs.identifySide(device.serviceUuid, device.name) }
     val isRecognized = side != "UNKNOWN"
 
     Card(

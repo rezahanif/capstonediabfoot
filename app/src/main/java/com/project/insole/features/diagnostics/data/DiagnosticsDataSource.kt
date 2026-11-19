@@ -2,83 +2,114 @@ package com.project.insole.features.diagnostics.data
 
 import com.project.insole.core.ble.InsoleBleManager
 import com.project.insole.core.ble.model.BleDeviceState
-import com.project.insole.core.network.SupabaseClient
+import com.project.insole.features.sensor.data.datasource.BleSensorDataSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Data source for device diagnostics information.
+ * Data source for technical insole diagnostics & doctor-facing telemetry (TD-4).
  *
- * Honest by design (brand spec R7 / TD-4): every value here is either real
- * or absent. RSSI comes from the last scan results; battery is NULL because
- * the firmware has no battery monitoring yet (TD-13 — a divider on GPIO5 is
- * designed, pending hardware), and no placeholder number is ever returned.
+ * Honest by design (UX-BRAND-SPEC Rule R7):
+ * Every value is real. Raw Celsius and kPa numbers are preserved here for doctor
+ * and engineering verification, while kept off patient-facing alert views (Rule R1).
+ * Battery reports honest hardware telemetry status (TD-13).
  */
 @Singleton
 class DiagnosticsDataSource @Inject constructor(
-    private val bleManager: InsoleBleManager
+    private val bleManager: InsoleBleManager,
+    private val bleSensorDataSource: BleSensorDataSource
 ) {
 
     private val _deviceStatusFlow = MutableStateFlow<DeviceStatus?>(null)
     val deviceStatusFlow: Flow<DeviceStatus?> = _deviceStatusFlow
 
-    data class DeviceStatus(
-        val batteryLevel: Int?,     // 0-100, null = firmware cannot report it yet (TD-13)
-        val rssiStrength: Int?,     // RSSI in dBm, null = never scanned while visible
+    data class InsoleHardwareDiagnostic(
+        val side: String,
+        val macAddress: String?,
         val connectionState: String,
-        val firmwareVersion: String,
+        val rssiDbm: Int?,
+        val liveTemperatureC: Float,
+        val peakTemperatureC: Float,
+        val livePressureKpa: Float,
+        val peakPressureKpa: Float,
+        val stepCount: Int
+    )
+
+    data class DeviceStatus(
+        val leftInsole: InsoleHardwareDiagnostic,
+        val rightInsole: InsoleHardwareDiagnostic,
+        val thermalAsymmetryC: Float,
+        val isBilateralConnected: Boolean,
+        val totalSteps: Int,
+        val walkState: String,
+        val batteryNotice: String,
+        val firmwareProtocol: String,
         val lastSyncTime: Long
     )
 
     /**
-     * Builds device status from real BLE state.
+     * Builds device status from real BLE state and parsed sensor telemetry.
      */
     suspend fun getDeviceStatus(): Result<DeviceStatus> {
         return try {
             val leftState = bleManager.leftDeviceState.value
             val rightState = bleManager.rightDeviceState.value
 
-            val connectionState = when {
-                leftState is BleDeviceState.Connected && rightState is BleDeviceState.Connected -> "Connected"
-                leftState is BleDeviceState.Connected || rightState is BleDeviceState.Connected -> "Partial"
-                else -> "Disconnected"
-            }
+            val leftAddr = bleManager.connectedAddressFor(isLeft = true)
+            val rightAddr = bleManager.connectedAddressFor(isLeft = false)
 
-            // Real RSSI from the most recent scan results, for whichever
-            // insole address is currently registered to a side. Null (shown
-            // as "Unknown") when we have no fresh scan for it.
-            val rssi = listOf(
-                bleManager.connectedAddressFor(isLeft = true),
-                bleManager.connectedAddressFor(isLeft = false)
-            ).firstNotNullOfOrNull { address ->
-                address?.let { addr ->
-                    bleManager.scannedDevices.value.firstOrNull { it.address == addr }?.rssi
-                }
-            }
+            // Scanned RSSI for the connected address
+            val scanned = bleManager.scannedDevices.value
+            val leftRssi = leftAddr?.let { addr -> scanned.firstOrNull { it.address == addr }?.rssi }
+            val rightRssi = rightAddr?.let { addr -> scanned.firstOrNull { it.address == addr }?.rssi }
+
+            val sensorData = bleSensorDataSource.sensorDataFlow.firstOrNull()
+
+            val leftDiag = InsoleHardwareDiagnostic(
+                side = "Left Foot",
+                macAddress = leftAddr ?: "Not paired",
+                connectionState = leftState.javaClass.simpleName,
+                rssiDbm = leftRssi,
+                liveTemperatureC = sensorData?.leftTemperature ?: 0f,
+                peakTemperatureC = sensorData?.leftPeakTemp ?: 0f,
+                livePressureKpa = sensorData?.leftPressure?.toFloat() ?: 0f,
+                peakPressureKpa = sensorData?.leftPeakPressure?.toFloat() ?: 0f,
+                stepCount = sensorData?.leftSteps ?: 0
+            )
+
+            val rightDiag = InsoleHardwareDiagnostic(
+                side = "Right Foot",
+                macAddress = rightAddr ?: "Not paired",
+                connectionState = rightState.javaClass.simpleName,
+                rssiDbm = rightRssi,
+                liveTemperatureC = sensorData?.rightTemperature ?: 0f,
+                peakTemperatureC = sensorData?.rightPeakTemp ?: 0f,
+                livePressureKpa = sensorData?.rightPressure?.toFloat() ?: 0f,
+                peakPressureKpa = sensorData?.rightPeakPressure?.toFloat() ?: 0f,
+                stepCount = sensorData?.rightSteps ?: 0
+            )
+
+            val asymmetry = if (leftDiag.liveTemperatureC > 0f && rightDiag.liveTemperatureC > 0f) {
+                kotlin.math.abs(leftDiag.liveTemperatureC - rightDiag.liveTemperatureC)
+            } else 0f
 
             val status = DeviceStatus(
-                batteryLevel = null, // TD-13: firmware cannot report battery yet
-                rssiStrength = rssi,
-                connectionState = connectionState,
-                firmwareVersion = "1.0.0",
+                leftInsole = leftDiag,
+                rightInsole = rightDiag,
+                thermalAsymmetryC = asymmetry,
+                isBilateralConnected = leftState is BleDeviceState.Connected && rightState is BleDeviceState.Connected,
+                totalSteps = sensorData?.stepCount ?: 0,
+                walkState = sensorData?.walkState?.name ?: "UNKNOWN",
+                batteryNotice = "Not available on hardware",
+                firmwareProtocol = "v2 CSV (12-field)",
                 lastSyncTime = System.currentTimeMillis()
             )
+
             _deviceStatusFlow.value = status
             Result.success(status)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * Performs device calibration.
-     */
-    suspend fun calibrateDevice(): Result<Unit> {
-        return try {
-            // Send calibration command to device
-            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }

@@ -251,6 +251,66 @@ class WalkingFSMTest {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    //  5B. BIOMECHANICAL FSR FUSION (Swing Unweighting & Stance Touchdown)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `FSR gait cycle requires unweighted swing before stance touchdown`() {
+        driveToWalking()
+
+        val swingPacket = SensorPacket(
+            accelX = 0f, accelY = 0f, accelZ = -1.0f,
+            gyroX = 0f, gyroY = 30f, gyroZ = 0f,
+            pressure = 10f,
+            pressuresKpa = listOf(0f, 0f, 0f, 0f, 10f)
+        )
+        val stancePacket = SensorPacket(
+            accelX = 0f, accelY = 0f, accelZ = -1.0f,
+            pressure = 150f,
+            pressuresKpa = listOf(30f, 20f, 40f, 10f, 50f)
+        )
+
+        val stepsBefore = fsm.stepCount
+
+        // 1. Swing unweights the foot (< 40 kPa)
+        fsm.process(swingPacket)
+        clock.advanceBy(200L)
+
+        // 2. Stance touchdown (> 60 kPa) triggers 1 step
+        clock.advanceBy(300L)
+        fsm.process(stancePacket)
+
+        assertEquals(stepsBefore + 1, fsm.stepCount)
+
+        // 3. Sustained stance contact without swing does NOT double count
+        clock.advanceBy(200L)
+        fsm.process(stancePacket)
+        assertEquals(stepsBefore + 1, fsm.stepCount)
+    }
+
+    @Test
+    fun `constant static standing pressure completely rejects false steps`() {
+        driveToWalking()
+
+        // High static standing pressure without unweighting (Scenario 4)
+        val standingPressurePacket = SensorPacket(
+            accelX = 0f, accelY = 0.2f, accelZ = -1.2f, // Accel motion variation
+            pressure = 300f,
+            pressuresKpa = listOf(50f, 50f, 50f, 50f, 100f)
+        )
+
+        val stepsBefore = fsm.stepCount
+
+        // Even with motion variation, foot is never unweighted → zero steps counted
+        repeat(15) {
+            clock.advanceBy(200L)
+            fsm.process(standingPressurePacket)
+        }
+
+        assertEquals(stepsBefore, fsm.stepCount)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     //  6. RESET
     // ═══════════════════════════════════════════════════════════════════════
 

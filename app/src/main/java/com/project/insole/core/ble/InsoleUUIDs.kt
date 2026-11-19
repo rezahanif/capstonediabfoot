@@ -14,14 +14,17 @@ object InsoleUUIDs {
     const val RIGHT_CHARACTERISTIC = "beb5483e-36e1-4688-b7f5-ea07361b26c9"
 
     /**
-     * Identifies the side (LEFT/RIGHT) based on the Service UUID string.
+     * Identifies the side (LEFT/RIGHT) based on the Service UUID string and/or device name.
      */
-    fun identifySide(uuid: String?): String {
-        if (uuid == null) return "UNKNOWN"
-        return when {
-            uuid.contains(LEFT_SERVICE, ignoreCase = true) -> "LEFT"
-            uuid.contains(RIGHT_SERVICE, ignoreCase = true) -> "RIGHT"
-            else -> "UNKNOWN"
+    fun identifySide(uuid: String?, name: String? = null): String {
+        if (uuid != null) {
+            if (uuid.contains(LEFT_SERVICE, ignoreCase = true)) return "LEFT"
+            if (uuid.contains(RIGHT_SERVICE, ignoreCase = true)) return "RIGHT"
         }
+        if (name != null) {
+            if (name.contains("Right", ignoreCase = true)) return "RIGHT"
+            if (name.contains("Left", ignoreCase = true)) return "LEFT"
+        }
+        return "UNKNOWN"
     }
 }

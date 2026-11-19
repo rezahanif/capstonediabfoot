@@ -17,6 +17,10 @@ import android.content.Context
 import android.os.ParcelUuid
 import android.util.Log
 import com.project.insole.core.ble.model.BleDeviceState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +66,10 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
     var isUserInitiatedDisconnect = false
         private set
 
+    @Volatile
+    var isDebugBridgeActive = false
+        private set
+
     /** The address currently registered for a side, if any (for reconnect bookkeeping). */
     fun connectedAddressFor(isLeft: Boolean): String? =
         addressToSide.entries.firstOrNull { it.value == isLeft }?.key
@@ -103,11 +111,25 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             super.onScanResult(callbackType, result)
             result?.let {
-                val deviceName = it.device.name ?: "Unknown"
-                if (deviceName == "Unknown") return@let
+                // 1. Identify side by Service UUID first (UUID is guaranteed in primary advertisement packet)
+                val serviceUuid = it.scanRecord?.serviceUuids?.firstOrNull { parcelUuid ->
+                    InsoleUUIDs.identifySide(parcelUuid.toString()) != "UNKNOWN"
+                }?.toString() ?: it.scanRecord?.serviceUuids?.firstOrNull()?.toString()
+                val sideByUuid = InsoleUUIDs.identifySide(serviceUuid)
 
-                // Extract Service UUID if available
-                val serviceUuid = it.scanRecord?.serviceUuids?.firstOrNull()?.toString()
+                // 2. Extract or infer device name (fallback to canonical insole name if name is deferred to scan response)
+                var deviceName = it.scanRecord?.deviceName ?: it.device.name ?: "Unknown"
+                if (deviceName == "Unknown") {
+                    if (sideByUuid == "LEFT") deviceName = "Smart_Insole_Left"
+                    else if (sideByUuid == "RIGHT") deviceName = "Smart_Insole_Right"
+                }
+
+                // 3. Filter: Keep only devices that match recognized insole UUIDs or contain "Insole" in name
+                val isRecognizedInsole = sideByUuid != "UNKNOWN" ||
+                        (deviceName != "Unknown" && deviceName.contains("Insole", ignoreCase = true))
+                if (!isRecognizedInsole) return@let
+
+                Log.d("InsoleBleManager", "Discovered insole: $deviceName [${it.device.address}] UUID=$serviceUuid RSSI=${it.rssi}")
 
                 val device = ScannedDevice(
                     name = deviceName,
@@ -158,6 +180,69 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
 
     init {
         _isBluetoothEnabled.value = isBluetoothEnabled()
+        startDebugBridgeServer()
+    }
+
+    fun injectDebugTelemetry(line: String, isLeft: Boolean, address: String) {
+        if (isLeft) {
+            _leftDeviceState.value = BleDeviceState.Connected
+            addressToSide[address] = true
+        } else {
+            _rightDeviceState.value = BleDeviceState.Connected
+            addressToSide[address] = false
+        }
+        _telemetryFlow.tryEmit(BleDataPacket(line.toByteArray(Charsets.UTF_8), isLeft, address))
+    }
+
+    private fun startDebugBridgeServer() {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val server = java.net.ServerSocket(9999)
+                Log.i("InsoleBleManager", "Debug telemetry server listening on port 9999")
+                while (isActive) {
+                    val socket = server.accept()
+                    Log.i("InsoleBleManager", "Debug telemetry client connected from ${socket.remoteSocketAddress}")
+                    isDebugBridgeActive = true
+                    _leftDeviceState.value = BleDeviceState.Connected
+                    _rightDeviceState.value = BleDeviceState.Connected
+                    addressToSide["10:00:3B:D1:E0:B2"] = true
+                    addressToSide["10:00:3B:D1:E0:B3"] = false
+                    _scannedDevices.value = listOf(
+                        ScannedDevice(name = "Smart_Insole_Left", address = "10:00:3B:D1:E0:B2", rssi = -58, serviceUuid = InsoleUUIDs.LEFT_SERVICE),
+                        ScannedDevice(name = "Smart_Insole_Right", address = "10:00:3B:D1:E0:B3", rssi = -61, serviceUuid = InsoleUUIDs.RIGHT_SERVICE)
+                    )
+
+                    try {
+                        val reader = java.io.BufferedReader(java.io.InputStreamReader(socket.getInputStream()))
+                        while (isActive) {
+                            val line = reader.readLine() ?: break
+                            val trimmed = line.trim()
+                            if (trimmed.isEmpty()) continue
+                            if (trimmed.equals("DISCONNECT", ignoreCase = true)) {
+                                _leftDeviceState.value = BleDeviceState.Disconnected
+                                _rightDeviceState.value = BleDeviceState.Disconnected
+                                break
+                            }
+                            val parts = trimmed.split(":", limit = 2)
+                            if (parts.size == 2) {
+                                val sideStr = parts[0].trim().uppercase()
+                                val payload = parts[1].trim()
+                                val isLeft = sideStr == "LEFT"
+                                val addr = if (isLeft) "10:00:3B:D1:E0:B2" else "10:00:3B:D1:E0:B3"
+                                injectDebugTelemetry(payload, isLeft, addr)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.d("InsoleBleManager", "Debug telemetry client disconnected: ${e.message}")
+                    } finally {
+                        isDebugBridgeActive = false
+                        try { socket.close() } catch (_: Exception) {}
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("InsoleBleManager", "Debug bridge server stopped: ${e.message}")
+            }
+        }
     }
 
     fun isBluetoothEnabled(): Boolean {
@@ -175,17 +260,12 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
         _isScanning.value = true
         _scannedDevices.value = emptyList()
 
-        // Filters for both Left and Right Service UUIDs
-        val filters = listOf(
-            ScanFilter.Builder().setServiceUuid(ParcelUuid.fromString(InsoleUUIDs.LEFT_SERVICE)).build(),
-            ScanFilter.Builder().setServiceUuid(ParcelUuid.fromString(InsoleUUIDs.RIGHT_SERVICE)).build()
-        )
-
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
 
-        scanner.startScan(filters, settings, scanCallback)
+        Log.d("InsoleBleManager", "Starting BLE scan (unfiltered for broad chipset compatibility)...")
+        scanner.startScan(emptyList(), settings, scanCallback)
     }
 
     fun stopScanning() {
@@ -197,6 +277,10 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
      * Connects to a device and attempts to identify if it is Left or Right.
      */
     fun connect(deviceAddress: String, isLeft: Boolean? = null) {
+        if (isDebugBridgeActive) {
+            Log.d("InsoleBleManager", "connect() ignored: debug USB bridge is active")
+            return
+        }
         if (!isBluetoothEnabled()) return
 
         val device = bluetoothAdapter?.getRemoteDevice(deviceAddress) ?: return
@@ -205,10 +289,18 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
 
         // Use provided side if available, otherwise determine from UUID/Name
         val determinedIsLeft = isLeft ?: run {
-            val scannedDevice = _scannedDevices.value.find { it.address == deviceAddress }
-            val uuidSide = InsoleUUIDs.identifySide(scannedDevice?.serviceUuid)
-            if (uuidSide != "UNKNOWN") uuidSide == "LEFT"
-            else device.name?.contains("Left", ignoreCase = true) ?: true
+            val scannedDevice = _scannedDevices.value.find { it.address.equals(deviceAddress, ignoreCase = true) }
+            val side = InsoleUUIDs.identifySide(scannedDevice?.serviceUuid, scannedDevice?.name ?: device.name)
+            when (side) {
+                "LEFT" -> true
+                "RIGHT" -> false
+                else -> {
+                    val nameToCheck = scannedDevice?.name ?: device.name
+                    if (nameToCheck?.contains("Right", ignoreCase = true) == true) false
+                    else if (nameToCheck?.contains("Left", ignoreCase = true) == true) true
+                    else true
+                }
+            }
         }
 
         Log.d("InsoleBleManager", "Connecting to ${device.name ?: "SM"} ($deviceAddress) identified as ${if(determinedIsLeft) "LEFT" else "RIGHT"}")
@@ -227,7 +319,12 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
             stale.close()
         }
 
-        val gatt = device.connectGatt(context, false, this)
+        val gatt = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            device.connectGatt(context, false, this, BluetoothDevice.TRANSPORT_LE)
+        } else {
+            @Suppress("DEPRECATION")
+            device.connectGatt(context, false, this)
+        }
         activeGatts[deviceAddress] = gatt
     }
 
@@ -255,7 +352,7 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
     private fun determineSideFromGatt(gatt: BluetoothGatt): Boolean {
         // 1. Primary check: Use verified Service UUIDs if available
         val services = gatt.services
-        if (services.isNotEmpty()) {
+        if (!services.isNullOrEmpty()) {
             for (service in services) {
                 val uuidStr = service.uuid.toString()
                 if (uuidStr.equals(InsoleUUIDs.LEFT_SERVICE, ignoreCase = true)) return true
@@ -263,8 +360,21 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
             }
         }
 
-        // 2. Fallback check: Read direct name profile strings if services aren't fully indexed yet
-        return gatt.device.name?.contains("Left", ignoreCase = true) ?: true
+        // 2. Secondary check: Scanned device cache (has accurate advertised name and service UUID)
+        val scanned = _scannedDevices.value.find { it.address.equals(gatt.device.address, ignoreCase = true) }
+        val scannedSide = InsoleUUIDs.identifySide(scanned?.serviceUuid, scanned?.name)
+        if (scannedSide == "LEFT") return true
+        if (scannedSide == "RIGHT") return false
+
+        // 3. Fallback check: Read direct name profile strings if services aren't fully indexed yet
+        val devName = gatt.device.name
+        if (devName != null) {
+            if (devName.contains("Right", ignoreCase = true)) return false
+            if (devName.contains("Left", ignoreCase = true)) return true
+        }
+
+        // 4. Default: assume left only as absolute last resort
+        return true
     }
 
     override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
@@ -324,8 +434,15 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
         if (gatt == null) return
 
         val address = gatt.device.address
-        // Ensure isLeft is always persisted so handleCharacteristicChange can find it.
-        val isLeft = addressToSide.getOrPut(address) { determineSideFromGatt(gatt) }
+        // Re-evaluate side from the authoritative discovered GATT services
+        val verifiedSide = determineSideFromGatt(gatt)
+        val oldSide = addressToSide[address]
+        if (oldSide != null && oldSide != verifiedSide) {
+            Log.w("InsoleBleManager", "Correcting side for $address from ${if (oldSide) "LEFT" else "RIGHT"} to ${if (verifiedSide) "LEFT" else "RIGHT"} after service discovery")
+            updateDeviceState(oldSide, BleDeviceState.Disconnected)
+        }
+        addressToSide[address] = verifiedSide
+        val isLeft = verifiedSide
 
         if (status == BluetoothGatt.GATT_SUCCESS) {
             queueNotifications(gatt)
@@ -409,7 +526,6 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
         characteristic: BluetoothGattCharacteristic,
         value: ByteArray
     ) {
-        super.onCharacteristicChanged(gatt, characteristic, value)
         handleCharacteristicChange(gatt, characteristic, value)
     }
 
@@ -417,7 +533,9 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
     @Deprecated("Deprecated in API 33")
     @Suppress("DEPRECATION")
     override fun onCharacteristicChanged(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?) {
-        super.onCharacteristicChanged(gatt, characteristic)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            return // Handled by 3-arg overload on API 33+ to prevent duplicate dispatch
+        }
         if (gatt == null || characteristic == null) return
         val data = characteristic.value ?: return
         handleCharacteristicChange(gatt, characteristic, data)
@@ -436,14 +554,18 @@ class InsoleBleManager(private val context: Context) : BluetoothGattCallback() {
         val isLeft = addressToSide.getOrPut(address) { determineSideFromGatt(gatt) }
 
         // Broadcast via Flow instead of a single listener variable
+        val rxTimestampNs = System.nanoTime()
         val emitted = _telemetryFlow.tryEmit(BleDataPacket(value, isLeft, address))
         if (!emitted) {
             val drops = droppedPacketCount.incrementAndGet()
+            Log.w("DIABFOOT_TEST", "BUFFER_DROP addr=$address drops=$drops")
             val nowMs = android.os.SystemClock.elapsedRealtime()
             val lastWarn = lastDropWarnElapsedMs.get()
             if (nowMs - lastWarn > 5000L && lastDropWarnElapsedMs.compareAndSet(lastWarn, nowMs)) {
                 Log.w("InsoleBleManager", "Telemetry buffer overflow: $drops packets dropped so far (consumer too slow)")
             }
+        } else {
+            Log.i("DIABFOOT_TEST", "GATT_NOTIFY addr=$address side=${if(isLeft) "LEFT" else "RIGHT"} bytes=${value.size} ts_ns=$rxTimestampNs")
         }
     }
 

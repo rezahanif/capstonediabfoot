@@ -42,9 +42,28 @@ class DoctorPairingStore @Inject constructor(
 
     fun getCode(): String? = prefs.getString(KEY_CODE, null)
 
+    fun isLinked(): Boolean = !getCode().isNullOrBlank()
+
     fun getDoctorName(): String? = prefs.getString(KEY_DOCTOR_NAME, null)
 
     fun getPairedAt(): Long = prefs.getLong(KEY_PAIRED_AT, 0L)
+
+    /**
+     * Returns a stable pseudonymous patient ID for DATA_CONTRACT.md uploads.
+     * Derived from doctor pairing code (e.g. "PT-4AB79CD2") or a local stable UUID.
+     * Never contains real name, email, or Google identity.
+     */
+    fun getOrCreatePatientId(): String {
+        val code = getCode()
+        if (!code.isNullOrBlank()) {
+            return "PT-${code.replace("-", "").uppercase()}"
+        }
+        val existing = prefs.getString(KEY_LOCAL_PATIENT_ID, null)
+        if (existing != null) return existing
+        val generated = "PT-" + java.util.UUID.randomUUID().toString().replace("-", "").take(8).uppercase()
+        prefs.edit().putString(KEY_LOCAL_PATIENT_ID, generated).apply()
+        return generated
+    }
 
     fun clear() {
         prefs.edit()
@@ -58,6 +77,7 @@ class DoctorPairingStore @Inject constructor(
     private companion object {
         const val PREFS_NAME = "doctor_pairing"
         const val KEY_INITIALIZED = "is_initialized"
+        const val KEY_LOCAL_PATIENT_ID = "local_patient_id"
         const val KEY_CODE = "pairing_code"
         const val KEY_DOCTOR_NAME = "doctor_name"
         const val KEY_PAIRED_AT = "paired_at"
